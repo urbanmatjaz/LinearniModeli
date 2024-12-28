@@ -1,0 +1,578 @@
+---
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+header-includes:
+  \usepackage{float}
+editor_options: 
+  markdown: 
+    wrap: 72
+  chunk_output_type: console
+---
+
+\renewcommand{\figurename}{Slika}
+\renewcommand{\tablename}{Tabela}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "",
+                      fig.align = 'center', 
+                      fig.width = 5, 
+                      fig.height = 4,
+                      warning = FALSE)
+```
+
+\section{Vaja 1: Začetna analiza podatkov, enostavni linearni regresijski model, simulacije }
+
+\subsection{1. Primer: Odstotek telesne maščobe}
+
+`R` paketi, ki jih bomo uporabili na vajah:
+
+```{r message=FALSE}
+library(vtable) # summary table (sumtable)
+library(reshape2) # reshape data sets for ggplot (melt)
+library(ggplot2) # nice plots (ggplot)
+library(corrplot) # correlation plots (corrplot)
+library(knitr)  # for markdown 
+library(kableExtra) # creates nice latex tables (kable, kable_styling)
+library(car) # regression diagnostics
+```
+
+Začetna analiza podatkov je pomemben del vsake obdelave podatkov (vir:
+\url{https://muse.jhu.edu/pub/56/article/793379/pdf}). Sestavljajo jo
+naslednji koraki:
+
+```{=tex}
+\begin{enumerate}
+  \item določitev metapodatkov (podatki o podatkih);
+  \item čiščenje podatkov (odpravljanje napak v podatkih);
+  \item pregled podatkov (razumevanje lastnosti podatkov);
+  \item poročanje začetne analize podatkov vsem sodelavcem, vpletenih v analizo;
+  \item izpopolnjevanje in posodabljanje načrta analize, ki vključuje ugotovitve na podlagi začetne analize podatkov;
+  \item poročanje začetne analize podatkov (vsebovati mora vse korake, ki vplivajo na interpretacijo rezultatov). 
+\end{enumerate}
+```
+
+Cilj naše analize bo razviti model za napovedovanje odstotka telesne
+maščobe na podlagi spremenljivk, katerih vrednosti lahko dobimo le z
+uporabo tehtnice in merilnega traku (vir: Roger W. Johnson (1996),
+"Fitting Percentage of Body Fat to Simple Body Measurements", Journal of
+Statistics Education,
+\url{http://jse.amstat.org/v4n1/datasets.johnson.html}). V podatkih sta
+dve oceni odstotka telesne maščobe, dobljeni po Brozokovi in Sirijevi
+enačbi. V vaji bo slednja spremenljivka naša odzivna spremenljivka.
+
+```{r}
+bodyfat <- read.table(url("https://jse.amstat.org/datasets/fat.dat.txt"))
+head(bodyfat)
+```
+\subsubsection{Metapodatki}
+
+Ta niz podatkov za 252 moških vsebuje informacije o:
+
+```{=tex}
+\begin{table}
+\caption{Metapodatki podatkovnega okvira \texttt{bodyfat}.}
+\begin{tabular}{l l l l l l l}
+\hline
+Ime & Pomen & Enote  & \makecell[l]{Merska \\ lestvica}  & Class & NAs \\
+\hline
+case & ID & & & integer  & 0 \\
+brozek & odstotek telesne maščobe (Brozek) & \%  & številska & numeric & 0 \\
+siri & odstotek telesne maščobe (Siri) & \%  & številska & numeric & 0 \\
+density & Gostota, določena s tehtanjem pod vodo & $ gm/cm^3 $  & številska & numeric & 0 \\
+age & Starost & years  & številska & numeric & 0 \\
+weight & Masa & lbs  & številska & numeric & 0 \\
+height & Višina & inches  & številska & numeric & 0 \\
+BMI & Indeks telesne mase & $kg/m^2$  & številska & numeric & 0 \\
+fatfreeweight & Masa brez maščobe [weight/(1-brozek/100)] & lbs & številska & numeric & 0 \\
+neck & Obseg vratu & cm  & številska & numeric & 0 \\
+chest & Obseg prsnega koša & cm  & številska & numeric & 0 \\ 
+abdomen & Obseg abdomna & cm  & številska & numeric & 0 \\
+hip & Obseg bokov & cm  & številska & numeric & 0 \\
+thigh & Obseg stegna & cm  & številska & numeric & 0 \\
+knee & Obseg kolena & cm  & številska & numeric & 0 \\
+ankle & Obseg gležnja & cm   & številska & numeric & 0 \\
+biceps & Obseg bicepsa & cm & številska & numeric & 0 \\
+forearm & Obseg podlakti & cm  & številska & numeric & 0 \\
+wrist & Obseg zapestja & cm  & številska & numeric & 0 \\
+\hline
+\end{tabular}
+\label{tab:meta}
+\end{table}
+```
+
+Tabela \ref{tab:meta} prikazuje metapodatke podatkovnega okvira `bodyfat`. Metapodatki so podatki o podatkih oz. informacije o spremenljivkah, na primer: oznaka in pomen posamezne spremenljivke, merska lestvica, enote, intervali, na katerih se vrednosti posameznih spremenljivk lahko nahajajo, informacije o manjkajočih podatkih. Metapodatki pa lahko vključujejo tudi informacije o tem, kako so bili podatki pridobljeni (npr. viri podatkov, metode zbiranja podatkov, kako je definirana ciljna populacija, merila za vključitev in izključitev posameznih enot, metode vzorčenja, čas zbiranja podatkov, ipd.).
+
+Iz metopodatkov lahko vidimo, da sta spremenljivki \texttt{BMI} in
+\texttt{fatfreeweight} izpeljani na podlagi drugih spremenljivk
+v podatkovnem okviru. Ti dve spremenljivki bomo izločili iz podatkovnega okvira, saj nas bo zanimalo napovedovanje odstotka telesne maščobe na podlagi 'osnovnih' spremenljivk.
+
+```{r}
+bodyfat <- bodyfat[, -c(8:9)]
+```
+
+Spremenljivkam dopišemo imena
+
+```{r}
+colnames(bodyfat) <- c("case", "brozek", "siri", "density", "age", "weight", 
+                       "height", "neck","chest", "abdomen", "hip", "thigh", 
+                       "knee", "ankle",  "biceps", "forearm", "wrist")
+```
+
+in spremenimo enote za spremenljivki masa in višina:
+
+```{r}
+## iz lb v kg
+bodyfat$weight <- bodyfat$weight * 0.454
+## iz in v cm
+bodyfat$height <- bodyfat$height * 2.54
+```
+
+\subsection{Čiščenje podatkov}
+
+Čiščenje podatkov je sistematičen poskus iskanja napak v podatkih in, če je le mogoče, njihovega odpravljanja. Pogosti primeri so: napačno kodiranje opisnih spremenljivk, nemogoče vrednosti, datumi, izven časovnega okvira študije, manjkajoče vrednosti, osamelci, nemogoče kombinacije vrednosti dveh spremenljivk, podvojene vrstice, ipd.
+
+V naslednjem koraku podatke očistimo vrednosti, ki niso verjetne:
+
+```{r}
+summary(bodyfat)
+
+#najmanjša oseba je visoka 75 cm
+which.min(bodyfat$height)
+bodyfat$weight[which.min(bodyfat$height)] #in tehta 93 kg
+
+bodyfat$height[bodyfat$case==42] <- 176.53  #glej https://jse.amstat.org/datasets/fat.txt
+```
+\subsection{Pregledovanje podatkov}
+
+Pregledovanje podatkov nam omogoča razumeti lastnosti podatkov, ki bi lahko vplivale na nadaljno analizo in interpretacijo rezultatov. Vključuje korake, ki preverjajo, ali podatki izpolnjujejo določene lastnosti oz. predpostavke, ki so potrebne, da določena analiza da zadovoljive rezultate, vendar izključujoč kakršno koli testiranje hipotez. Pregledovanje podatkov vključuje preučevanje univaritnih in multivaritnih porazdelitev spremenljivk, izračun opisnih statistik ter identifikacija manjkajočih vrednosti pri posameznih enotah in spremenljivkah.
+
+V kontekstu linearnih modelov lahko z univariatnimi porazdelitvami spremenljivk odkrijemo  prisotnost osamelcev, ki imajo lahko močan vpliv na rezultate analize, ter spremenljivke, ki so asimetrično porazdeljene. Čeprav linerani model ne predpostavlja ničesar o porazdelitvi odzivne spremenljivke (neodvisno od regresorjev) in porazdelitvi regresorjev, je verjetno, da bodo spremenljivke, ki so močno asimetrične, vplivale na porazdelitev ostankov, za katere linearni model predpostavlja, da so normalno porazdeljeni. V splošnem velja, če je spremenljivka asimetrično porazdeljena, je potrebno analizo temu prilagoditi in raje uporabiti metodo, ki ne temelji na predpostavki o normalni porazdelitvi, lahko pa spremenljivko tudi lineariziramo. Pri asimetrično porazdeljenih spremenljivkah se pogosto zgodi tudi to, da je povezanost z drugimi spremenljivkami lahko le posledica majhnega števila enot, zato je treba to povezanost obravnavati previdno. Če so pri spremenljivki prisotne manjkajoče vrednosti, zaključkov na podlagi analize, omejene na enote, pri katerih manjkajočih vrednosti ni, morda ne bomo mogli posplošiti na celotno populacijo. Preučevanje bivariatnih povezanosti (preko korelacij oz. grafično) nam lahko pomaga pri odkrivanju nelinearnosti, interakcij, osamelcev in pri identificiranju multikolinearnosti. 
+
+Poglejmo si univariatne porazdelitve spremenljivk in korelacije
+med pari napovednih spremenljivk.
+
+```{r}
+# napovedne spremenljivke
+pred <- c("age", "weight", "height", "neck", "chest", "abdomen", "hip", 
+"thigh", "knee", "ankle", "biceps", "forearm", "wrist")
+
+sumtable(bodyfat[,c("siri", pred)], 
+         add.median = T,  
+         digits = 1,
+         title = "Opisne statistike za spremenljivke v podatkovnem okviru 
+         \\texttt{bodyfat}."
+         )
+
+```
+
+```{r message=FALSE, fig.width=7, fig.height=6, out.width="90%", fig.cap="\\label{fig:fig-1} Univariatne porazdelitve spremenljivk v podatkovnem okviru \\texttt{bodyfat}."}
+bodyfat_long <- melt(bodyfat[, c("case", "siri", pred)], id.vars = "case")
+qplot(value, data = bodyfat_long) + 
+  facet_wrap(~variable, scales = "free") + 
+  theme_bw() + 
+  xlab("")
+```
+
+Porazdelitev odzivne spremenljivke \texttt{siri} je dokaj blizu normalni porazdelitvi, pri nekaterih napovednih spremenljivkah imamo posamezne osamelce, sicer pa so vrednosti precej normalno porazdeljene po zalogi vrednosti.
+
+```{r fig.width=7, fig.height=6, out.width="95%", fig.cap="\\label{fig:fig-2} Spearmanovi koeficienti korelacije med napovednimi spremenljivkami v podatkovnem okviru \\texttt{bodyfat}."}
+colors10 <- colorRampPalette(c("#0000aa","white","#aa0000"))(10)
+corrplot.mixed(cor(bodyfat[, pred], method="spearman"),
+               lower.col = colors10, upper.col = colors10,
+               tl.col="black",   tl.cex = 0.7)
+```
+
+Slika \ref{fig:fig-2} kaže, da so napovedne spremenljivke dokaj tesno pozitivno povezane med seboj, edina napovedna spremenljivka, ki ne kaže povezanosti z ostalimi je \texttt{age}. Močne korelacije kažejo na to, da bi v modelu znali imeti težave s kolinearnostjo.
+
+```{r fig.width=8, fig.height=8, out.width="100%", fig.cap="\\label{fig:fig-3} Matrika razsevnih grafikonov v podatkovnem okviru \\texttt{bodyfat}."}
+pairs(bodyfat[, c("siri", pred)])
+```
+
+Matrika razsevnih grafikonov na Sliki \ref{fig:fig-3} nam grafično prikaže vse bivariatne zveze med posameznimi pari spremenljivk v podatkovnem okviru `bodyfat`. Vidimo, da so zveze lepo linearne, povezanost med nekaterimi pari spremenljivk pa je zelo močna, kar bi posledično lahko pomenilo težave s kolinearnostjo. Ponekod so opazni osamelci.
+
+\subsubsection{Analiza}
+
+V današnji vaji se bomo osredotočili na zvezo med spremenljivkama
+\texttt{siri} in \texttt{abdomen}. Zanima nas, ali bi \texttt{siri} lahko napovedali na podlagi spremenljivke \texttt{abdomen}. Če med spremenljivkama obstaja
+linearna povezanost, potem tako zvezo lahko modeliramo z linearnim
+modelom:
+
+$$y_i = \beta_0 + \beta_1 \cdot x_i +\epsilon_i,\ \ i = 1, ..., n.$$
+
+```{r fig.width=6, fig.height=5, out.width="75%", fig.cap="\\label{fig:fig-4} Razsevni grafikon za \\texttt{siri} in \\texttt{abdomen} z dodano premico in gladilnikom.", message=FALSE}
+ggplot(data=bodyfat, aes(x=abdomen, y=siri))+geom_point()+
+  geom_smooth(method="lm", se=FALSE) +
+  geom_smooth(col="red", se=FALSE)+
+  xlab("Obseg abdomna (cm)") +
+  ylab("Odstotek telesne maščobe (%)")
+```
+
+Cilj je najti oceni za parametra $\beta_0$ in $\beta_1$, tako da se bo
+regresijska premica dobro prilegala podatkom:
+
+$$\hat{y}_i =  b_0 + b_1 \cdot x_i,\ \ i = 1, ..., n.$$
+
+```{r}
+m1 <- lm(siri ~ abdomen, data = bodyfat)
+summary(m1)
+```
+
+V povzetku modela se testirata dve ničelni hipotezi:
+
+$H_0: \beta_0 = 0$ proti $H_1: \beta_0 \neq 0$
+
+in
+
+$H_0: \beta_1 = 0$ proti $H_1: \beta_1 \neq 0$
+
+Statistično sklepanje in napovedi so veljavne, kadar so predpostavke normalnega linearnega
+modela izpolnjene, to je kadar:
+
+```{=tex}
+\begin{enumerate}
+  \item obstaja linearna odvisnost odzivne spremenljivke od napovednih sprmenljivk,
+  \item imajo napake $\varepsilon_i$ za vsako enoto skupno varianco $\sigma^2$ (homoskedastičnost),
+  \item je pričakovana vrednost napak 0,
+  \item so napake porazdeljene po normalni porazdelitvi, 
+  \item so napake medsebojno neodvisne.
+\end{enumerate}
+```
+
+Osnovno diagnostiko modela naredimo na podlagi slik ostankov modela:
+
+```{r fig.width=7, fig.height=6, out.width="80%", fig.cap="Ostanki za model 1 \\texttt{siri} $\\sim$ \\texttt{abdomen}."}
+par(mfrow=c(2,2))
+plot(m1)
+```
+
+Na podlagi slik ostankov lahko preverimo predpostavke 1., 2., 3. in 4.
+Razložite, kako! Kaj pomeni predpostavka 5.?
+
+Zdi se, da se linearni model dobro prilega podatkom, razen za enoto 39.
+
+```{r}
+bodyfat[39, ]
+```
+
+Izkaže se, da večino osamelcev, ki smo jih identificirali na podlagi Slike \ref{fig:fig-1}, lahko pripišemo enoti 39.
+
+To enoto bi imelo v nadaljevanju smisel izključiti iz analize in
+primerjati rezultate obeh modelov. Kasneje bomo v okviru posebnih točk v regresijski analizi videli, da je ta točka t. i. vplivna točka.
+
+```{r}
+bodyfat_brez39 <- bodyfat[-which(bodyfat$case==39),] 
+m2 <- lm(siri ~ abdomen, data = bodyfat_brez39)
+summary(m2)
+```
+Primerjava ocen obeh modelov:
+
+```{r}
+compareCoefs(m1, m2)
+```
+
+Poglejmo ostanke modela `m2`.
+
+```{r fig.width=7, fig.height=6, out.width="80%", fig.cap="Ostanki za model 2 \\texttt{siri} $\\sim$ \\texttt{abdomen}."}
+par(mfrow=c(2,2))
+plot(m2)
+```
+
+Oceni $b_0 =$ `r round(m2$coef[1], 2)` in $b_1 =$
+`r round(m2$coef[2], 2)`, dobljeni po metodi najmanjših kvadratov, sta
+nepristranski. Pripadajoči standardni napaki izražata mero natančnosti
+ocen, na podlagi katerih lahko izračunamo intervale zaupanja.
+
+95% interval zaupanja za obe oceni:
+
+```{r}
+confint(m2)
+```
+
+Interpretacija modela: če se obseg abdomna poveča za 1 cm, se telesna
+maščoba v povprečju poveča za `r round(m2$coef[2], 2)` %, 95 % IZ:
+(`r paste(round(confint(m2)[2, ], 2), collapse = ", ")`). Z modelom smo
+pojasnili `r round(summary(m2)$r.squared, 2)*100` % variabilnosti
+odzivne spremenljivke.
+
+```{r message=FALSE, fig.width=7, fig.height=6, out.width="65%", fig.cap="Odvisnost \\texttt{siri} od \\texttt{abdomen} za dana vzorca 252 oz. 251 moških in regresĳski premici na podalgi modelov \\texttt{m1} in \\texttt{m2} s 95 \\% intervali zaupanja za povprečno napoved."}
+bodyfat$Podatki <- "Vsi"
+bodyfat_brez39$Podatki <- "Brez osamelca"
+
+bodyfat_komb <- rbind(bodyfat, bodyfat_brez39)
+
+ggplot(aes(x=abdomen, y=siri, color=Podatki), data=bodyfat_komb) + 
+  geom_point() + 
+  geom_smooth(method = "lm", se=TRUE) +
+  xlab("Obseg abdomna (cm)") +
+  ylab("Odstotek telesne maščobe (%)") +
+  theme(legend.position = "top")
+```
+
+\subsection{2. Primer: Čas teka Collina Jacksona}
+
+V datoteki \textit{COLLIN.txt} so podatki za $21$ tekov čez ovire na
+$110$ m tekača Collina Jacksona: hitrost vetra = \texttt{windspeed}
+(m/s) in čas teka= \texttt{time} (s) (Vir: Daly et al., str. $525$).
+Podatki so bili dobljeni v poskusu v zaprtem prostoru, hitrost vetra je
+bila izbrana za vsak tek posebej vnaprej. Negativne vrednosti hitrosti
+vetra pomenijo, da je veter pihal v prsi tekača. Kako hitrost vetra
+vpliva na čas teka čez ovire na $110$ m?
+
+```{=tex}
+\begin{enumerate}
+  \item Grafično prikažite podatke.
+  \item Ocenite parametra linearnega regresijskega modela za odvisnost časa teka od hitrosti vetra.
+  \item Analizirajte ostanke modela na podlagi grafičnih prikazov.
+  \item Obrazložite cenilki parametrov modela in njuna intervala zaupanja.
+  \item Obrazložite koeficient determinacije.
+  \item Izračunajte povprečno in posamično napoved časa teka ter pripadajoče $95$ \% intervale zaupanja za naslednje hitrosti vetra: $-1$ m/s, $0$ m/s, $1$ m/s in $4$ m/s. Ali so vse napovedi upravičene? Zakaj?
+\end{enumerate}
+```
+
+```{r}
+d <- read.table("COLLIN.txt", header = T)
+summary(d)
+```
+
+```{r fig.width=7, fig.height=4, out.width="80%", fig.cap="Univariatne porazdelitve spremenljivk v podatkovnem okviru \\texttt{COLLIN}."}
+#poglejmo najprej univariatne porazdelitve spremenljivk v podatkovnem okviru 
+par(mfrow=c(1,2))
+
+boxplot(d$windspeed, main="", xlab="Hitrost vetra [m/s]")
+boxplot(d$time, main="",  xlab="Čas teka [s]")
+```
+
+```{r fig.width=6, fig.height=5, out.width="80%", fig.cap="Odvisnost časa teka od hitrosti vetra."}
+#Ali obstaja linearna povezanost med spremenljivkama?
+ggplot(data=d, aes(x=windspeed, y=time)) +
+  geom_point() + 
+  xlab("Hitrost vetra [m/s]") +
+  ylab("Čas teka [s]") +
+  ggtitle("Čas teka Collina na 110 m")
+```
+
+Enostavni linearni model za čas teka Collina v odvisnosti od hitrosti
+vetra:
+
+```{r}
+m_collin <- lm(time~windspeed, data = d)
+summary(m_collin)
+```
+
+Slike ostankov:
+
+```{r fig.width=7, fig.height=6, out.width="80%", fig.cap="\\label{fig:fig-ost} Ostanki za model \\texttt{time} $\\sim$ \\texttt{windspeed}."}
+par(mfrow=c(2,2))
+plot(m_collin)
+```
+
+Na prvi levi sličici Slike \ref{fig:fig-ost} so prikazani ostanki (Residuals) v odvisnosti od napovedanih vrednosti (Fitted values). Vidimo, da prihaja do odstopanj gladilnika (rdeča črta, ki jo nariše funkcija loess – local polynomial regression fitting) od vodoravne črte z vrednostjo ostanka 0. Ker je model narejen le na `r nrow(d)` enotah, so odstopanja normalna in še ne pomenijo kršitve predpostavk. Vsaka točka namreč gladilnik potegne v svojo smer, zato smo pri analizah majhnih vzorcev načeloma do odstopanj bolj tolerantni. Zgornja desna slika kaže porazdelitev standardiziranih ostankov v primerjavi z normalno porazdelitvijo (ravna črta v ozadju). Točke se dobro prilegajo ravni črtkani črti, kar pomeni, da lahko privzamemo normalno porazdelitev za standardizirane ostanke. Spodnja leva slika prikazuje koren absolutne vrednosti standardiziranih ostankov v odvisnosti od napovedanih vrednosti. Gladilnik, ki je vodoraven, pomeni, da med ostanki ni prisotne heteroskedastičnosti. Tudi tu lahko odstopanja pripišemo majhnemu vzorcu. Spodnja desna slika identificira vplivne točke, ki jih v tem primeru ni.
+
+```{r}
+coef(m_collin)
+confint(m_collin)
+```
+
+Interpretacija modela: v povzetku modela se testirata dve ničelni
+hipotezi. Prva testira, ali je čas teka Collina na 110 m v brezveterju
+enak 0 (ni smiselna). Domnevo zavrnemo: imamo 95 % zaupanje, da je čas
+teka Collina na 110 m v brezveterju nekje med
+`r round(confint(m_collin)[1, 1], 2)` in
+`r round(confint(m_collin)[1, 2], 2)` s. Druga ničelna domneva testira,
+ali je čas teka Collina na 110 m odvisen od hitrosti vetra (smiselna).
+Tudi to domnevo zavrnemo v prid alternativne: obstaja povezanost med
+časom teka in hitrotjo vetra. S 95 % zaupanjem lahko trdimo, če se
+hitrost vetra v hrbet poveča za 1 m/s, se čas teka v povprečju zmanjša
+med `r round(confint(m_collin)[2, 1], 2)` in
+`r round(confint(m_collin)[2, 2], 2)` s. Z modelom smo pojasnili
+`r round(summary(m_collin)$r.squared, 2)*100` % variabilnosti odzivne
+spremenljivke.
+
+```{r}
+casi = data.frame(windspeed = c(-1, 0, 1, 4))
+
+povprecne_napovedi = data.frame(predict(m_collin, casi, interval = "confidence"))
+povprecne_napovedi = data.frame(cbind(casi, 
+                                      povprecne_napovedi$fit, 
+                                      paste0("(", 
+                                             round(povprecne_napovedi$lwr, 2), 
+                                             ", ", 
+                                             round(povprecne_napovedi$upr, 2), ")")
+                                      ))
+
+colnames(povprecne_napovedi) = c("Hitrost vetra [m/s]", "Povprečna napoved [s]", "95 % IZ")
+
+kable(povprecne_napovedi, 
+      digits = c(0, 2, 0), 
+      caption = "Povprečna napoved časa teka.") %>%
+  kable_styling("striped", full_width = F)
+```
+
+```{r}
+posamicne_napovedi = data.frame(predict(m_collin, casi, interval = "prediction"))
+posamicne_napovedi = data.frame(cbind(casi, 
+                                      posamicne_napovedi$fit, 
+                                      paste0("(", 
+                                             round(posamicne_napovedi$lwr, 2), 
+                                             ", ", 
+                                             round(posamicne_napovedi$upr, 2), ")")
+                                      ))
+
+colnames(posamicne_napovedi) = c("Hitrost vetra [m/s]", "Posamična napoved [s]", "95% IZ")
+
+kable(posamicne_napovedi, 
+      digits = c(0, 2, 0), 
+      caption = "Posamična napoved časa teka.") %>%
+  kable_styling("striped", full_width = F)
+```
+
+Primer interpretacije za hitrost vetra 1 m/s: napovedana vrednost za čas
+teka je 13.24 s. Pripadajoči 95 % IZ za povprečni čas teka pri hitrosti
+vetra 1 m/s je (13.16 s, 13.32 s). Za posamezni tek pri hitrosti vetra 1
+m/s je pripadajoči 95 % IZ (12.9 s, 13.58 s). 
+
+Napoved za hitrost vetra 4 m/s ni upravičena, saj gre za ekstrapolacijo.
+
+```{r message=FALSE, fig.width=7, fig.height=6, out.width="65%", fig.cap="Odvisnost \\texttt{time} od \\texttt{windspeed} za dani vzorec 21 tekov in regresĳska premica s 95 \\% intervali zaupanja za povprečno napoved."}
+ggplot(data=d, aes(x = windspeed, y = time)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "lm", se = TRUE) +
+  xlab("Hitrost vetra [m/s]") +
+  ylab("Čas teka [s]") +
+  ggtitle("Čas teka Collina na 110 m")
+```
+
+\subsection{3. Simulacija podatkov iz modela linearne regresije}
+
+Zanimajo nas lastnosti cenilk enostavnega linearnega regresijskega
+modela. Osredotočili se bomo na testiranje domneve $H_0: \beta_1=0$. Za
+izbrani vrednosti parametrov enostavne linearne regresije $\beta_0=100$
+in $\beta_1=1$ bomo izvedli simulacije, ki bodo ilustrirale vpliv
+velikosti vzorca $n$ in vrednosti variance napak $\sigma^2$ na
+porazdelitev cenilk parametrov in na moč testa pri testiranju domneve
+$H_0:\beta_1=0$. Za vsako izbrano velikost vzorca $n$ najprej generiramo
+vrednosti napovedne spremenljivke \texttt{x} na intervalu $15$ do $70$.
+Pri tem uporabimo funkcijo \texttt{sample} z argumentom
+\texttt{replace=TRUE}:
+\texttt{x<-sample(c(17:70), size=n, replace=TRUE}). Za tako določene
+vrednosti napovedne spremenljivke generiramo vrednosti odzivne
+spremenljivke, pri čemer upoštevamo da so pogojno na vrednosti napovedne
+spremenljivke porazdeljene normalno s pričakovano vrednostjo
+$\beta_0+ \beta_1$\texttt{X} in varianco $\sigma^2$:
+$y_i=100 + x_i+\varepsilon_i$; napake $\varepsilon_i$, $i=1,...,50$,
+generiramo s funkcijo \texttt{rnorm()} za porazdelitev
+$N(0,\sigma^2=11^2)$.
+
+Z namenom odgovoriti na naslednja vprašanja:
+
+```{=tex}
+\begin{itemize}
+  \item Kakšne so porazdelitve ocen parametrov enostavnega linearnega modela?
+  \item Kolikšen delež intervalov zaupanja za $\beta_1$ vsebuje pravo vrednost parametra?
+  \item Kolikšna je moč testa pri testiranju ničelne domneve $H_0: \beta_1 = 0$?
+\end{itemize}
+```
+bomo izvedli simulacije, pri čemer bomo podatke generirali 1000-krat in
+za vsak generirani vzorec izračunali cenilki parametrov enostavnega
+linearnega modela $b_0$ in $b_1$, 95 % interval zaupanja za $\beta_1$ in
+$p$-vrednost pri testiranju domneve $H_0: \beta_1=0$.
+
+```{r}
+f.reg.sim <- function(x, beta0, beta1, n, sigma, nsim){
+  
+  # pripravimo prazne vektorje za rezultate simulacij, cenilki parametrov b0 in b1,
+  # p-vrednost za testiranje domneve beta1=0, 
+  # spodnjo in zgornjo mejo intervala zaupanja za beta1
+  b0 <- b1 <- l.b1 <- u.b1 <- p.b1 <- NULL 
+  
+  for(i in 1:nsim){
+    epsilon <- rnorm(n, mean=0, sd=sigma)
+    y <- beta0 + beta1*x + epsilon
+    m <- lm(y~x)
+    b0[i] <- coef(m)[1]
+    b1[i] <- coef(m)[2]
+    l.b1[i] <- confint(m)[2, 1]
+    u.b1[i] <- confint(m)[2, 2]
+    p.b1[i] <- summary(m)$coef[2, 4]
+  }
+  return(data.frame(b0, b1, l.b1, u.b1, p.b1))
+}
+
+```
+
+```{r}
+#parametra modela
+beta0 <- 100
+beta1 <- 1
+#velikost vzorca
+n <- 50
+#standardno odklon napak
+sigma <- 11
+#generiramo vrednosti x
+x <- sample(c(17:70), size=n, replace=TRUE)
+
+#število simulacij
+nsim <- 1000
+
+#nastavimo seme za ponovljivost
+set.seed(20)
+rez.1000 <- f.reg.sim(x=x, beta0, beta1, n, sigma, nsim)
+```
+
+```{r}
+# 2.5 in 97.5 centil za b1 na podlagi simulacij
+(centili <- quantile(rez.1000$b1, probs = c(0.025, 0.975)))
+```
+
+```{r}
+# ocena verjetnosti za napako II. vrste za H0: beta1=0
+alfa  <- 0.05
+sum(rez.1000$p.b1 > alfa)/nsim
+```
+
+```{r}
+# ocena moči testa na podlagi Nsim simulacij
+(moc.testa <- 1 - sum(rez.1000$p.b1 > alfa)/nsim)
+```
+
+```{r, fig.width = 7, fig.cap="Porazdelitev cenilk parametrov $b_0$ (levo) in $b_1$ (desno) za $\\sigma=11$ in $n=50$, \\texttt{set.seed(20)}, rdeča črta kaže pravo vrednost za parameter, modri črti predstavljata $2.5$ in $97.5$ centil za $b_1$."}
+par(mfrow=c(1,2))
+boxplot(rez.1000$b0, ylab = "b0"); 
+abline(h = beta0, col = "red")
+boxplot(rez.1000$b1, ylab = "b1"); 
+abline(h = beta1, col = "red"); 
+abline(h = centili, col = "blue")
+```
+
+```{r}
+# delež intervalov zaupanja, ki ne vsebujejo prave vrednosti parametra beta1,
+# (ocena velikosti testa)
+sum(rez.1000$l.b1 > beta1 | rez.1000$u.b1 < beta1)/nsim
+```
+
+\subsection{Domača naloga: Simulacije iz modela enostavne linearne regresije}
+
+Simulacije ponovite za vse kombinacije:
+
+```{=tex}
+\begin{itemize}
+  \item različnih velikosti vzorcev $n$: $10$, $15$, $50$ in $1000$ in
+  \item različnih vrednosti $\sigma$: $5$, $11$, $22$.
+\end{itemize}
+```
+
+Grafično prikažite:
+
+```{=tex}
+\begin{itemize}
+  \item odvisnost širine intervala zaupanja za $\beta_1$ od $n$, za vsako vrednost $\sigma$;
+  \item odvisnost širine intervala zaupanja za $\beta_1$ od $\sigma$, za vsak $n$;
+  \item odvisnost moči testa od $n$, za vsako vrednost $\sigma$;
+  \item odvisnost moči testa od $\sigma$, za vsak $n$
+\end{itemize}
+```
+
+in napišite kratek povzetek vaših ugotovitev.

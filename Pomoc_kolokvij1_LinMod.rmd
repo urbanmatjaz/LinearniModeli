@@ -1,0 +1,479 @@
+---
+title: "Pomoc_kolokvij1_LinMod"
+author: "Tinkara Perme"
+date: "2024-01-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(car)
+library(effects)
+library(gridExtra)
+
+library(ggpubr)
+library(ellipse)
+library(dplyr)
+library(vtable)
+library(reshape)
+library(corrplot)
+library(knitr)
+library(kableExtra)
+library(GLMsData)
+
+```
+
+# Osnovni pregled podatkov
+
+```{r}
+# če je txt file
+data = read.table("blabla.txt", header=T) 
+# če je csv file
+
+dim(data) # dimenzije vrstice, stolpci
+head(data) # začetek tabele
+str(data) 
+summary(data) # min, max, kvantili, povprečje po spr
+levels(data$spr) # levli faktorske spr
+#data(data) 
+
+```
+
+
+# Osnovne prilagoditve spremenljivk
+
+```{r}
+
+# Spremeni napovedno_spr v faktor
+data$spr = factor(data$spr)
+
+# Spremeni enote (recimo inch → cm)
+data$spr = data$spr*2.54
+
+# Dodaj labels faktorski napovedni_spr
+data$spr = factor(data$spr, labels=c("bla1", "bla2"))
+
+# Zamenjaj oznake spr (recimo iz M → moški)
+levels(data$spr) = c("bla1", "bla2")
+
+# Centriranje napovedne spr
+data$spr_centered = data$spr - cifra
+
+# Z ukazom rownames vsaki vrstici damo ime, to ime služi za identifikacĳo podatka na slikah in pri določenih izpisih
+rownames(data) = data$spr
+
+```
+
+
+# Osnovne vizualizacije
+
+```{r}
+# Razvrščanje grafov
+ggarrange(p1, p2, p3, p4, ncol=2, nrow=2) # to daš na koncu
+
+# Osnovni razsevni grafikon - 1. možnost
+ggplot(data = data) +
+  geom_point(mapping = aes(x = napovedna_spr, y = odzivna_spr)) +
+  xlab("napovedna_spr (enote)") + ylab("odzivna_spr (enote)") 
+
+# Osnovni razsevni grafikon - 2. možnost
+ggplot(data, aes(x=številska_napovedna_spr, y=odzivna_spr)) + 
+  geom_point() + 
+  xlim(c(_,_)) +
+  xlab("napovedna_spr (enote)") + ylab("odzivna_spr (enote)") + theme_bw() # nariši več takih grafov za vsako številsko_napovedno_spr, odzivna_spr je ista, za opisne_napovedne_spr naredi boxplote → združi z ggarrange
+
+# Histogrami
+par(mfrow=c(1,2))
+hist(data$napovedna_spr1, main="", xlab="", ylab="", breaks=20)
+hist(data$napovedna_spr2, main="", xlab="", ylab="")
+
+# Sami boxploti
+par(mfrow=c(2, 2))
+par(cex=0.5)
+boxplot(placa$wage ~ placa$education, 
+        xlab = "Izobrazba", ylab = "Plača (1000 $)")
+boxplot(placa$wage ~ placa$jobclass, 
+        xlab = "Tip zaposlitve", ylab = "Plača (1000 $)")
+boxplot(placa$wage ~ placa$health, 
+        xlab = "Zdravstveno stanje", ylab = "Plača (1000 $)")
+boxplot(placa$age ~ placa$health, 
+        xlab = "Zdravstveno stanje", ylab = "Starost (leta)")
+
+# Osnovni boxplot
+ggplot(data, aes(x=opisna_napovedna_spr, y=odzivna_spr)) + 
+  geom_boxplot() + 
+  xlab("napovedna_spr (enote)") + ylab("odzivna_spr (enote)") + theme_bw()
+
+# Preglej vse kombinacije opisnih_napovednih_spr - boxploti
+ggplot(data, aes(x=opisna_napovedna_spr1, y=FEV)) + 
+  geom_boxplot() + 
+  facet_wrap(.~ opisna_napovedna_spr2) +
+  xlab("opisna_napovedna_spr1") + ylab("odzivna_spr (enota)") + theme_bw()
+
+# Vse kombinacije opisnih_napovednih_spr z gladilniki - za preverjanje linearnosti → ta isti graf izriši za vsako od številskih_napovednih_spr!! (samo to zamenjaj "x= " in ime x-osi) → iste grafe ponovi tudi, če odzivno_spr transformiraš (recimo daj log(odzivna_spr))
+ggplot(data, aes(x=številska_napovedna_spr, y=odzivna_spr)) + 
+  geom_point() + 
+  geom_smooth(se=FALSE) +
+  facet_grid(opisna_napovedna_spr1 ~ opisna_napovedna_spr2) + 
+  xlab("številska_napovedna_spr") + ylab("odzivna_spr (enota)") + theme_bw()
+
+
+# Osnovni razsevni grafikon, če imaš 2 napovedni spr: eno opisno in eno številsko
+ggplot(data = data, aes(x = številska_napovedna_spr, y = odzivna_spr, col = opisna_napovedna_spr)) +
+  geom_point() + 
+  xlab("številska_napovedna_spr (enota)") + ylab("odzivna_spr (mm)")
+
+# Boxplot → uporabi za opisne napovedne spr
+boxplot(odzivna_spr ~ opisna_napovedna_spr, data = data, ylab = c("odzivna_spr (enota)"), xlab = "opsina_napovedna_spr")
+
+# V kakšni zvezi so pari analiziranih spremenljivk
+pairs(data) # Robna odvisnost odzivne spr od napovednih spr, vsaka slika zase ne upošteva prisotnosti drugih napovednih spr.
+
+# V ukazu scatterplot iz paketa car se z argumentom id na sliki izpišeta imeni izstopajočih podatkov in boxplota
+# S tem prikazom lahko probaš tudi npr. transformirati odzivno spr in prikazati še enkrat isto!
+scatterplot(odzivna_spr ~ napovedna_spr, regLine = FALSE, smooth = FALSE, boxplots = 'xy',
+xlab = c("napovedna_spr (enota)"), ylab = c("odzivna_spr (enota)"),
+data = data, pch = 16,
+id = list(n = 2, location = "lr")) # id = TRUE
+```
+
+# Posebne točke
+
+```{r}
+
+# Regresijski osamelci: studentizirani ostanki glede na kvantile 𝑡(SP=𝑛−𝑘−2) in pripadajoča 95 % točkovna ovojnica (QQ grafikon)
+qqPlot(model, id = TRUE)
+
+# Za vsako točko posebej preverjamo, ali je regresĳski osamelec. Ničelna domneva pravi, da 𝑖-ta točka ni regresĳski osamelec. Izpiše vse tiste točke, pri katerih je nepopravljena 𝑝-vrednost pod 0.05.
+outlierTest(model) # točka je reg osamelec, če je Bonferroni p-vrednost manjša od 0.05 
+
+# Da preveriš kako se modelske napovedi razlikujejo od dejanskih točk - regresijski osamelci
+data[c(cifra1, cifra2), ]
+fitted(model)[c(cifra1, cifra2)]
+log(data$odzivna_spr[c(cifra1, cifra2)]) # brez log, če ga ne uporabljaš!
+
+
+# Vzvodne točke:  Vzvod v odvisnosti od napovedne_spr za model
+plot(data$napovedna_spr, hatvalues(model), pch = 16,
+xlab = c("napovedna_spr (enota)"), ylab = c("Vzvod"))
+
+# Grafični prikaz studentiziranih ostankov, vzvodov in Cookove razdalje (ploščina kroga je sorazmerna Cookovi razdalji) za model
+influencePlot(model,
+              id = list(method = "noteworthy", n = 2, cex = 1, location = "lr"),
+              xlab = "Vzvodi", ylab = "Studentizirani ostanki") # n = število točk z največjo vrednostjo studentiziranega ostanka, 𝑎 točk z največjim vzvodom in 𝑎 točk z največjo Cookovo razdaljo (pogosto se točke prekrivajo in jih je v izpisu manj kot 3𝑎)
+# poglej tabelo za cookove vrednosti, če so večje od 1 + na grafu, katere točko so čez črtkano črto - te imajo velik vzod - če imajo oboje skupaj, so vplivne točke.
+
+# Vplivne točke:
+vplivne = lm.influence(model)
+names(vplivne)
+sort(vplivne$hat, decreasing = TRUE)[1:4] # 4 točke z največjimi vzvodi
+vplivne$coeff["specifična_točka",] # spremembi ocen b_0 in b_1, če specifično točko izločimo
+sort(vplivne$coeff[,1],decreasing=TRUE)[1:4] # 4 točke z največjo spremembo b_0
+sort(vplivne$coeff[,2])[1:4] # 4 točke z največjo spremembo naklona
+sort(vplivne$sigma)[1:4] # izpis standardnih napak regresije brez vključenega podatka/točke
+
+data.brez = subset(data, subset = data$napovedna_spr2 != "specifična_točka")
+model.brez = lm(data ~ napovedna_spr1, data = data.brez)
+
+# Primerjajmo ocene parametrov in njihove standardne napake za model in model.brez
+compareCoefs(model, model.brez)
+
+# Izloči vplivno točko
+data = data[-which(data$spr==cifra),]
+
+```
+
+
+
+# Vse množnosti za modele
+
+## Brez interakcij
+
+```{r}
+# Ena napovedna spr
+m0 = lm(odzivna_spr ~ napovedna_spr, data = data)
+
+# Dve napovedni spr
+m1 = lm(odzivna_spr ~ napovedna_spr1 + napovedna_spr2, data = data)
+
+
+# Komponente modela:
+names(m0)
+
+# Koeficienti modela
+m0$coef
+
+```
+
+
+## Z interakcijami
+
+```{r}
+model = lm(odzivna_spr ~ napovedna_spr1 + napovedna_spr2 + napovedna_spr1:napovedna_spr2, data = data) # isto kot:
+model = lm(odzivna_spr ~ napovedna_spr1 * napovedna_spr2, data = data)
+
+modelska_matrika = model.matrix(model.m2)
+head(modelska_matrika, n = 3)
+
+model.m2$coeff # Poglej število ocenjenih parametrov v modelu
+
+# ... nadaljuj z anova(model)
+```
+
+
+## Transformacije
+
+```{r}
+# Izbira transformacije
+symbox(~ odzivna_spr, xlab = "Lambda",
+ylab = "Transformirane vrednosti za odzivno_spr",
+data = data) # Izbereš tisto, kjer je boxplot najbolj simetričen, najbolj podoben ~ N
+
+# Oceni, katera lambda bi bila glede na maximum likelihood primerna
+summary(powerTransform(model)) # razlaga spodaj
+
+# Logaritem verjetja v odvisnosti od 𝜆 za model, optimalna vrednost za 𝜆 in njen 95 % IZ
+par(mar = c(4, 4, 1, 1))
+boxCox(model) # Pazi pri teh transformacijah, včasih ni razložljivo!
+
+################################################################################
+
+# Interpretacija eksponentne zveze:
+model = lm(log(odzivna_spr) ~ napovedna_spr, data = data)
+(b = coefficients(model))
+exp(b[1]) # Eksponiraj intercept (beta0) → Interpretacija je zdaj lahko: Ob napovedni_spr = 0, je odzivna_spr enaka exp(b[1]).
+exp(confint(model)[1,]) # Eksponiraj IZ za intercept
+exp(b[2])-1 # Eksponiraj beta1 → interpretacija je zdaj lahko: Če se napovedna_spr spremeni za 1, se odzivna_spr spremeni za exp(b[2])-1 * 100 %. 
+exp(confint(model)[2,])-1 # Eksponiraj IZ za beta1
+summary(model)$r.squared
+
+# Grafični prikazi za exp zvezo
+
+## 1.1 način
+plot(effect(c("napovedna_spr","lahko dodaš več napovednih"), model,
+            transformation = list(link = log, inverse = exp)),
+     axes = list(y = list(lab = "odzivna_spr")), main = "") # Odvisnost odzivne_spr od napovedna_spr in pripadajoča regresijska premica s 95 % IZ za povprečno napoved odzivne_spr, skala za odzivno_spr je logaritemska!!!!
+
+## 1.2 način
+plot(Effect(c("napovedna_spr1", "napovedna_spr2", "napovedna_spr3"), model,
+            transformation = list(link = log,inverse = exp)),
+     axes = list(y = list(lab = "odzivna_spr (enota)", type = "response")),
+     multiline=TRUE, ci.style="bands", main="", ylim=c(_, _))
+
+
+## 2. način
+ggplot(data = data, aes(x = napovedna_spr, y = log(odzivna_spr))) +
+geom_point() + stat_smooth(method = "lm") +
+xlab("napovedna_spr (enote!!!)") + ylab("log(odzivna_spr)") # Odvisnost log(odzivna_spr) od napovedna_spr in pripadajoča regresijska premica s 95 % IZ za povprečno napoved log(odzivna_spr)
+
+
+# Grafični prikazi (de-transformacija) za exp zvezo
+ggplot(data = data, aes(x = napovedna_spr, y = odzivna_spr)) +
+  geom_point() + xlab("napovedna_spr (enote)") + ylab("odzivna_spr (enote)") +
+  stat_function(fun = function(napovedna_spr) exp(b[1] + b[2] * napovedna_spr)) #  Odvisnost odzivna_spr od napovedna_spr; eksponentni model
+
+```
+
+* powerTransform razlaga: poiščemo parametre pri katerih je verjetje za y največje. Oceno 𝜆̂ dobimo z numeričnim postopkom kjer za različne vrednosti 𝜆̂ izračunamo verjetje za y. Izberemo 𝜆, pri kateri ima logaritem verjetja maksimalno vrednost. powerTransform vrne optimalni 𝜆 in pripadajoči IZ ter izvede dva informativna testa:
+**𝐻0∶ 𝜆 = 0 (ustrezna je logaritemska transformacija)
+**𝐻0∶ 𝜆 = 1 (𝑦 ni treba transformirati)
+
+
+## Vizualizacije modelov
+
+```{r}
+head(model.matrix(model)) # da preveriš referenčne skupine
+tail(model.matrix(model)) 
+
+# Dodatek regresijske premice na razsevni grafikon
+ggplot(data = data, mapping = aes(x = napovedna_spr, y = odzivna_spr)) +
+geom_point() +
+geom_smooth(method = "lm", se = FALSE) + # če daš se=TRUE dobiš 95% IZ za povprečno napoved!!
+xlab("napovedna_spr (enote)") + ylab("odzivna_spr (enote)")
+
+# Graf dodane spremenljivke
+avPlots(m1, ylim = c(_, _)) # Vpliv vsake od napovednih spr na odzivno spr ob upoštevanju ostalih spr v modelu (= pri konstantni vrednosti ostalih spr) - naklon je enak oceni parametrov za tisto spremenljivko
+
+# 3D grafikon za dve številski spremenljivki hkrati
+# avPlot3d(mod2, coef1="Age", coef2="Ht")
+
+# Graf parcialnih ostankov
+crPlots(m1, ylim = c(_, _))# Odvisnosti odzivne spr od posamezne napovedne spr upoštevajoč drugo/-e spr v modelu → BREZ INTERAKCIJ
+plot(Effect(c("spr1", "spr2", "spr3"), model), multiline=TRUE,
+     ci.style="bands", main="", ylim=c(_,_)) #  Modelske napovedi za odzivno_spr v odvisnosti od spr1, spr2 in spr3 hkrati, pri povprečni vrendosti spr4 za model → Z INTERAKCIJAMI (iste grafe narišeš pred in po vključitvijo interakcij!!) → glej interakcije
+
+# Druga možnost grafa parcialnih ostankov
+plot(predictorEffects(m1, ~., partial.residuals = TRUE),
+ci.style = "none", ylim = c(_, _), main = "") # Napovedane vrednosti za povprečno odzivno_spr za m1 in parcialni ostanki z gladilnikom; levo: glede na napovedno_spr1 pri povprečni napovedni_spr2, desno: glede na napovedno_spr2 pri povprečni napovedni_spr1.
+
+# Grafični prikaz napovedi in pripadajočih intervalov zaupanja za povprečne napovedi
+plot(predictorEffects(m1, ~.), ylim = c(_,_), main = "") # Napovedane vrednosti in 95 % intervali zaupanja za povprečno odzivno_spr za m1; levo: glede na napovedno_spr1 pri povprečni napovedni_spr2, desno: glede na napovedno_spr2 pri povprečni napovedni_spr1.
+
+#!!! graf parcialnih ostankov razlaga: 
+plot(predictorEffect(c("napovedna_spr1"), model))
+# Razlaga: Povprečne napovedi za odzivno_spr (y os) v odvisnosti od napovedne_spr1 (x os) in napovedne_spr2 (več grafov glede na to spr - vrednosti v naslovih grafov) pri povprečni vrednosti napovedne_spr3.
+
+```
+
+Razlaga:
+
+*crPlots: Za številske regresorje modra črtkana premica prikazuje modelske napovedi odzivne_spr glede na vrednosti posameznega regresorja pri povprečnih vrednostih ostalih regresorjev; točke predstavljajo parcialne ostanke za regresor, ki je na vodoravni osi. Gladilnik je narisan na podlagi parcialnih ostankov.
+
+
+# Diagnostika modela
+
+```{r}
+# slike ostankov
+par(mfrow = c(2, 2))
+plot(m0)
+
+# Cel izpis za model
+summary(m0)
+names(summary(m0)) # za dodatne ali posamezne izpise
+
+# SSmodel in SSresidual
+anova(m0)
+
+# Intervala zaupanja za parametra modela
+confint(m0) # Interpretacija: Če se napovedna_spr poveča za 1 (enota), pri 95 % zaupanju pričakujemo, da se bo odzivna_spr povečala na intervalu spodnja_meja (enota) do zgornja_meja (enota). → lahko pri interpretaciji tudi množiš vse z 10 ali 100
+
+# F-test za dva gnezdena modela: 
+anova(model1, model2) #prvi je gnezden
+
+# R2 in ocene parametrov s pripadajočimi 95 % parcialnimi IZ
+summary(model.p)$r.squared 
+
+
+
+#########################  INTERAKCIJE ##############################
+
+# Indentifikacija interakcije med dvema številskima napovednima spr
+graf1 = plot(Effect(c("napovedna_spr1", "napovedna_spr2"), model, partial.residuals = TRUE), 
+             ci.style = "none", lattice = list(layout = c(4, 1)))
+graf2 = plot(Effect(c("napovedna_spr2", "napovedna_spr1"), model.m1, partial.residuals = TRUE),
+             ci.style = "none", lattice = list(layout = c(4, 1)))
+grid.arrange(graf1, graf2) # razlaga spodaj
+
+# Rezultati sekvenčnih F-testov
+anova(model) # Razlaga: P04, stran 24
+
+# Interakcija med opisno in številsko napovedno spr
+# Ta plot je bil narejen za vzporedni premici:
+plot(Effect(c("številska_napovedna_spr", "opisna_napovedna_spr"), model), # lahko isti graf narediš brez/z interakcijo
+     multiline = TRUE, ci.style = "bands",
+     key.args = list(x = 0.05, y = 0.8, corner = c(0, 0)),
+     main = "", lty = c(1:2))
+
+```
+
+Razlaga:
+
+* Effect plot: grafi prikazujejo napovedi za model in parcialne ostanke z gladilnikom pri različnih vrednostih druge spremenljivke v modelu. Tak grafični prikaz omogoča identifikacijo interakcije med dvema številskim spremenljivkama. Premice, ki predstavljajo napovedi modela, so na vseh razdelkih grafikona vzporedne. Če se gladilniki parcialnih ostankov prilegajo tem premicam, to pomeni, da ni interakcije med spremenljivkama, če pa je naklon gladilnikov v razdelkih različen, to nakazuje interakcijo.
+
+
+# Interpretacije parametrov
+
+## Osnovna linarna regresija brez interakcij
+
+* Intercept: Pričakovana vrednost odzivne_spr pri napovedni_spr 0, je beta0.
+* Beta1: Ko se napovedna_spr poveča za 1, se odzivna_spr poveča za beta1.
+
+## Linerna regresija z 2 regresorjema brez interakcij
+* Beta2: Torej velja, če napovedno_spr2 povečamo za eno enoto in ostane izbrana vrednost napovedne_spr1 nespremenjena, se pričakovana vrednost 𝑦 poveča za beta2.
+
+** Z drugimi besedami: pri poljubni vrednosti napovedne_spr1 velja: če se napovedna_spr2 poveča za eno enoto, se odzivna_spr2 v povprečju poveča za beta2, pripadajoč 95 % IZ je (_,_) 
+
+## Linearna regresija z opisno napovedno spr z 2 vrednostima
+Grafi ostankov: Tu primerjamo varianci napovedne_spr v dveh skupinah.
+
+Glede na summary(model)$coeff:
+* Intercept = beta0: povprečje odzivne_spr pri referenčni skupini (preko p-vrednosti poglej, če je statistično značilno različno od 0)
+* za drugo vrednost napovedne_spr (nereferenčna skupina): Nereferenčan skupina ima za ___preberi cifro v 2. vrstici izpisa__ manjšo/večjo vrednost odzivne_spr kot referenčna skupina (pogledaš p-vrednost, če je razlika med povprečjema referenčne in nereferenčne skupine značilna).
+
+## Linearna regresija z opisno napovedno spr z več kot dvema vrednostma
+Glede na summary(model)$coeff:
+* Intercept: povprečje odzivne_spr za referenčno skupino A
+* beta1: razlika povprečja odzivne_spr v skupini B in povprečja odzivne_spr v skupini A
+* beta2: razlika povprečja odzivne_spr v skupini C in povprečja odzivne_spr v skupini A
+
+Najprej preverimo anova(model), da vidimo, če se splača gledati povzetek modela (anova je preverila, ali se model, ki vključuje beta0 in beta1 značilno razlikuje od tistega, ki je vključeval le beta0).
+
+
+## Linearna regresija z opisno in številsko napovedno spr. 
+→ 2 premici, 2 možnosti:
+
+### vzporedni, če ne vključimo interakcij:
+  * beta0: povprečna vrednost odzivne_spr pri referenčni skupini opisne_napovdne_spr in ko je številska_napovedna_spr enaka 0
+  
+  * beta1: razlika povprečja odzivne_spr za referenčno in nereferenčno skupino opisne_napovedna_spr pri vseh vrednostih številske_napovedne_spr [min,max] 
+  → Referenčna skupina ima pri vseh analiziranih vrednostih številske_napovedne_spr za beta1 večjo/manjšo vrednost povprečne odzivne_spr kot nereferenčna skupina opisne_napovedne_spr. Pripadajoči IZ je: glej confint(model).
+  
+  * beta2: naklon vzporednih premic
+  → Če se številska_napovedna_spr poveča za 1 (ali množi z 10), se ob upoštevanju opisne_napovedne_spr odzivna_spr v povprečju poveča za beta2. Pripadajoči IZ je: glej confint(model).
+
+
+### se sekata (drugačna naklona, drugačni začetni vrednosti), če vključimo interakcije:
+  * beta0: povprečna vrednost odzivne_spr pri referenčni skupini opisne_napovedne_spr in ko je številska_napovedna_spr enaka 0
+  
+  * beta1: razlika povprečja odzivne_spr za referenčno in nereferenčno skupino opisne_napovedne_spr, ko je številska_napovedna_spr enaka 0
+  
+  * beta2: naklon premice za referenčno skupino opisne_napovedne_spr
+  
+  * beta3: razlika naklonov premic za referenčno skupino opisne_napovedne_spr in nereferenčno skupino
+
+
+
+## Interakcija dveh številskih spremenljivk
+Pri različnih vrednosti napovedne_spr1 je vpliv napovedne_spr2 na odzivno_spr različen, interakcija napovedna_spr1:napovedna_spr2 je negativna/pozitivna in statistično značilna/neznačilna (𝑝 = _). Glej: summary(model)$coeff.
+
+Povedano drugače: Če x2 povečamo za eno enoto in ostane x1 nespremenjen, se pričakovana vrednost y poveča za beta2 + beta3*x1. → sprememba je pri različnih vrednostih x1 različna
+
+## Interakcija številske in opisne napovedne spr
+Grej zgoraj "se sekata (drugačna naklona, drugačni začetni vrednosti), če vključimo interakcije".
+
+
+# Povprečna in posamična napoved
+
+```{r}
+vrednosti = data.frame(napovedna_spr1 = cifra, napovedna_spr2 = cifra)
+povp.napoved = predict(m1, vrednosti, interval = "confidence")
+pos.napoved = predict(m1, vrednosti, interval = "prediction")
+print(data.frame(cbind(vrednosti, povp.napoved, pos.napoved)))
+```
+
+
+# Gnezdeni model
+
+anova(mod1,mod2)
+
+* pri majhni p-vrednosti:
+𝐹-test za primerjavo dveh gnezdenih modelov (mod1 in mod2) pokaže, da mod2 pojasni statistično pomemben del variabilnosti odzivne_spr. Modela mod1 in mod2 nista ekvivalentna (𝑝 = _), boljši je kompleksnejši mod2.
+
+Prisotnost interakcije lahko preverimo tudi na podlagi $F$-testa za primerjavo gnezdenih modelov, ki testira domnevo, da sta modela ekvivalentna.
+
+# Sekvenčni F-test
+
+anova(model)
+
+Poglej katere interkaicje so statistično značilne.
+Ali je interakcija v modelu potrebna ali ne lahko preverimo z $F$-testom. Z ukazom `anova(model)` izvedemo sekvenčni $F$-test, ki testira vpliv posamezne spremenljivke ob upoštevanju predhodnjih spremenljivk v modelu.
+
+
+# Teoretična vprašanja
+
+* Na kaj vpliva heteroskedastičnost? 
+Vpliva na stand napake ocen parametorv - lahko so podcenjene ali precenjene (ponavadi podcenjene). Variabilnost bo napačno ocenjena - manjše SE - testno statistiko delimo s SE, torej bo t stat večja - p vrednost bo manjša kot v resnici - prevečkrat bomo zavrnili H0. Inferenca je problem, ne ocene.
+
+
+* Predpostavke linearnega modela in kako odpravimo predpostavke (4. sklop)
+
+* Kako heterskedastičnost vpliva na inferenco modela?
+Leva grafikona v prvi in drugi vrstici kažeta nekonstantno varianco. Varianca ostankov narašča
+z napovedanimi vrednostmi (zgornja leva sličica), slika ostankov je podobna klinu: variabilnost
+ostankov narašča od leve proti desni. Prisotnost nekonstantne variance še bolje pokaže gladilnik
+na levi spodnji sliki, kjer so na vodoravni osi napovedane vrednosti, na navpični osi pa koreni
+absolutnih vrednosti standardiziranih ostankov.
+V tem primeru so ocene parametrov sicer ustrezne (pri dokazu nepristranskosti cenilk smo pokazali,
+da ne potrebujemo predpostavke o konstantni varianci), njihove standardne napake pa ne, zato
+kakršnakoli inferenca za ta model ni utemeljena.
+

@@ -1,0 +1,636 @@
+---
+title: "Pomoc_kolokvij2_LinMod"
+author: "Tinkara Perme"
+date: "2024-03-31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(effects)
+library(car)
+library(gridExtra)
+library(cvTools)
+library(olsrr)
+library(MASS)
+library(lattice)
+library(nlme)
+library(emmeans)
+library(reshape2)
+library(leaps)
+
+```
+
+
+# Spreminjanje podatkov na začetku
+
+```{r}
+# long format
+data_long <- melt(data) #ali
+data_long <- melt(data, id.vars = "identifikacijska_spr") #ali
+train_long <- melt(train_set[, c("", "", "", "", "")]) #naštej vse spr
+
+
+# izbriši manjkajoče vrednosti
+data <- na.omit(data)
+
+# zamenjaj vrstni red ravni faktorja 
+data$napovedna_spr <- factor(data$napovedna_spr, levels = c("bla1", "bla2", "bla3"))
+```
+
+
+# Grafični prikazi na začetku
+
+```{r, fig.cap="podnaslovi graf!!"}
+
+# scatter ploti: vse številske z vsemi številskimi
+pairs(data_številske_spr)
+
+# Histogrami za vse številske spr na enkrat (Univariatne porazdelitve spremenljivk v podatkovnem okviru data)
+qplot(value, data = data_long) +
+facet_wrap(~variable, scales = "free") +
+theme_bw() +
+xlab("")
+
+# Hkraten prikaz številskih in opisnih napovednih spr
+# Vse napovedne številske spr posebej + gladilniki (facet_grid!!) - izriše graf za vsako vrednost opisne spr
+p1 <- ggplot(data = data, aes(x = številska_napovedna_spr1, y = odzivna_spr)) +
+facet_grid(.~opisna_napovedna_spr) +
+geom_point() +
+geom_smooth(se = FALSE) +
+xlab("številska_napovedna_spr1") +
+ylab("odzivna_spr")
+
+p2 <- ggplot(data = data, aes(x = številska_napovedna_spr2, y = odzivna_spr)) +
+facet_grid(.~opisna_napovedna_spr) +
+geom_point() +
+geom_smooth(se = FALSE) +
+xlab("številska_napovedna_spr2") +
+ylab("odzivna_spr")
+
+ggarrange(p1, p2, nrow = 2, ncol = 1)
+
+
+# enostaven scatter plot z gladilnikom
+ggplot(data, aes(x = napovedna_spr, y = odzivna_spr)) + geom_point() +
+geom_smooth(method = "loess", se = FALSE)
+
+
+# 1 številska napovedna spr in ena opisna napovedna spr (factor) in odzivna spr Z GLADILNIKOM
+ggplot(data = data, aes(x = številska_napovedna_spr, y = odzivna_spr, col = opisna_napovedna_spr)) +
+geom_point() + geom_smooth(se = FALSE) +
+ylab("odzivna spr (enota)") +
+xlab("Številska napovedna spr (enota)")
+
+
+# za vrsto GroupedData
+plot(data, type = c("p", "l", "smooth"), pch = 16) #dobiš grafke za vsako osebo/skupino posebej
+
+```
+
+* Ali obstaja povezanost med spr?
+Formalno bi za odgovor na vprašanje o povezanosti med napovednimi ter odzivno spremenljivko z F-testom testirali ničelno hipotezo, da so vsi parametri enaki 0.  Če bi se o tem, ali obstaja povezanost med napovednimi spremenljivkami in odzivno spremenljivko odločali na podlagi t-statistik in pripadajočih p-vrednosti, obstaja velika verjetnost za lažno pozitivne zveze. F-statistika po drugi strani upošteva število napovednih spremenljivk v modelu. Torej v primeru, da ničelna hipoteza drži, obstaja na podlagi F-statistike le 5 % možnost za p-vrednost manjšo od 0,05 ne glede na število napovednih spremenljivk ali število enot v podatkih.
+
+
+# Polinomska regresija 
+
+```{r}
+model.kvad <- lm(odzivna_spr ~ napovedna_spr + I(napovedna_spr^2), data = data) # isto kot:
+model.kvad.1 <- lm(odzivna_spr ~ poly(napovedna_spr, degree = 2, raw = TRUE), data = data)
+
+```
+
+Kako se spreminjajo stopinje prostosti modela z večanjem stopnje polinoma? Kakšno je število ocenjenih
+parametrov? V kakšnem razmerju je število ocenjenih parametrov in število stopinj prostosti?
+
+
+# Zlepki
+
+```{r}
+# model regresije kvadratnih zlepkov brez vozlišč, degree je stopnja polinoma
+m <- lm(odzivna_spr ~ bs(napovedna_spr, degree = 2), data = data)
+
+# kubični in z naravni zlepki s tremi vozlišči določenimi s kvantilnimi rangi 0.25, 0.5 in 0.75
+vozl <- quantile(data$napovedna_spr, probs = c(0.25, 0.5, 0.75), na.rm = TRUE)
+model.bs <- lm(odzivna_spr ~ bs(napovedna_spr, knots = vozl), data = data)
+model.ns <- lm(odzivna_spr ~ ns(napovedna_spr, knots = vozl), data = data)
+
+# določitev vozlišč (knots)
+model.bs <- lm(odzivna_spr ~ bs(napovedna_spr, knots = c(cifra1, cifra2, cifra3)), data = data)
+
+# naravni zlepki
+model.ns<- lm(odzivna_spr ~ ns(napovedna_spr, df = cifra), data = data)
+attr(ns(data$napovedna_spr, df = cifra), "knots") # ukaz izpiše le notranja vozlišča
+attr(ns(data$napovedna_spr, df = cifra), "Boundary.knots") # zunanji vozlišči sta na min(napovedna_spr) in max(napovedna_spr)
+
+# Koliko vozlišč je najprimerneje uporabiti?
+anova(model.ns3, model.ns4, model.ns5, model.ns6, model.ns7, model.ns8)
+
+```
+
+Pri bs zlepkih ocenjujemo K + d + 1 (intercept) parametrov.
+
+Pri ns zlepkih ocenjunemo K (notranja + 2 zunanji vozlišči) - 1 + 1 (intercept) parametrov
+
+
+Kako se spreminjajo stopinje prostosti modela z večanjem stopnje polinoma? Kakšno je število ocenjenih
+parametrov? V kakšnem razmerju je število ocenjenih parametrov in število stopinj prostosti?
+
+Kakšno je število ocenjenih parametrov v modelu z naravnimi zlepki glede na število vozlišč? V kakšnem
+razmerju je število ocenjenih parametrov, število vozlišč in število stopinj prostosti modela?
+
+Načeloma velja, če predpostavimo nelinearno zvezo med napovedno in odzivno spremenljivko, moramo nelinearnost modelirati tudi pri interakcijskih členih (marginality principle).
+
+
+# Kolinearnost
+
+(pomembno pri izbiri modela)
+
+* Nariši korelacijsko matriko (glej vrednosti nad 0.5)
+* naredi polni model (grafi ostankov + pogej p-vrednsoti za vsako spr v izpisu + poglej R2)
+* VIF statistike (pogej, katere spr imajo veliko vrednost in poglej, če je ena izmed njih korelirana z vsemi ostalimi)
+
+```{r}
+# korelacijska matrika Spearman
+round(cor(data, method = "spearman"), 2) # samo tabela
+
+# korelacijska matrika Pearson (lepa s krogci in ciframi), daj notri data brez odzivne spr (recimo data[,-1])
+colors10 <- colorRampPalette(c("#0000aa","white","#aa0000"))(10)
+corrplot.mixed(cor(data_brez_odzivne),
+lower.col = colors10, upper.col = colors10,
+tl.col="black", tl.cex = 0.7)
+
+# korelacijska matrika Spearman
+colors10 <- colorRampPalette(c("#0000aa","white","#aa0000"))(10)
+corrplot.mixed(cor(train_set[, c("napovedna_spr1", "napovedna_spr2", "napovedna_spr3")],
+method = "spearman"),
+lower.col = colors10, upper.col = colors10,
+tl.col="black", tl.cex = 0.5, number.cex = 0.8)
+
+```
+
+# Izbira modela
+
+```{r}
+
+# izračun PRESS statistike
+h <- hatvalues(mod.polni)
+press.ost <- residuals(mod.polni)/(1 - h)
+(PRESS <- sum(press.ost^2))
+
+
+# Naredi učno in testno množico - 1. način
+n <- dim(data)[1]
+n.u <- round(n/2)
+n.t <- floor(n/2)
+ind <- rep(c(TRUE, FALSE), c(n.u, n.t))
+ind <- sample(ind)
+data.ucni <- bodyfat[ind,]
+data.test <- bodyfat[!ind,]
+
+# Naredi učno in testno množico - 2. način
+train <- sample(1:nrow(data), round(2/3*nrow(data)), replace=F)
+train_set <- data[train, ]
+test_set <- data[-train, ]
+
+# Ostanki za model v odvisnosti od vrednosti napovednih spremenljivk
+train_resid_long <- cbind(train_long[train_long[,"variable"]!="odzivna_spr",],
+"resid" = rep(m0$residuals, length(unique(train_long$variable))-1))
+ggplot(data = train_resid_long, aes(x = value, y = resid)) +
+geom_point() +
+geom_smooth(se = T) +
+facet_wrap( ~ variable, scale = "free") +
+xlab("Vrednost napovedne spremenljivke") +
+ylab("Ostanki") +
+theme_bw()
+
+# izračun napovedi samo za en izbrani model
+mod.ucni <- lm(odzivna_spr ~ ., data = data.ucni) # oz. daj notri karkšen koli drug model namesto polnega
+y.nap <- predict(mod.ucni, data.test)
+
+# CVC, MSE, RMSE → za več kode glej Damijanino predavanje 
+(CVC <- sum((bodyfat.test$siri - y.nap)^2))
+(MSE <- CVC/n.t)
+(RMSE <- sqrt(CVC/n.t))
+
+# 𝐾-kratno navzkrižno preverjanje
+nap.sprem <- names(data)
+nap.sprem <- nap.sprem[! nap.sprem %in% "odzivna_spr"]
+
+# za vsak p izberi najboljši model na podlagi vsote kvadriranih ostankov oz. R^2
+RSS <- numeric()
+for (i in (1:length(formule))){
+mod <- lm(formule[i], data = data)
+RSS[i] <- sum(resid(mod)^2)
+}
+tabelaRSS$RSS <- RSS
+best_p_model <- tabelaRSS %>%
+group_by(p) %>%
+slice_min(order_by = RSS)
+
+cv <- numeric()
+for (i in (1:(length(nap.sprem)+1))){
+mod <- lm(best_p_model$formula[i], data = data)
+mod.cv <- cvFit(mod, data = data, y = data$odzivna_spr, K = 5, seed = 7)
+cv[i] <- mod.cv$cv
+}
+best_p_model$cv<- cv
+round(best_p_model$cv,2)
+
+
+# Mallowa Cp-statistika
+Cp <- numeric()
+for (i in (1:(length(nap.sprem)+1))){
+mod <- lm(best_p_model$formula[i], data = data)
+Cp[i] <- ols_mallows_cp(mod, mod.polni)
+}
+best_p_model$Cp <- Cp
+round(best_p_model$Cp,2)
+
+# Cp-statistika z vaj!!!
+# Najprej bomo poskusili z izbiro najboljše podmnožice spremenljivk (best subset selection) na podlagi statistike Cp ter prilagojene vrednosti R2. Pri tem si lahko pomagamo s funkcijo regsubsets iz paketa leaps, argument nvmax določa maksimalno število napovednih spremenljivk v modelu.
+# nvmax nastavimo na število vseh napovednih spremenljivk
+best_subset = regsubsets(odzivna_spr ~. , data = train_set, nvmax = cifra)
+summary(best_subset) #Funkcija plot.regsubsets prikaže izbiro najboljše podmožice za vsak model s k spremenljivkami.
+plot(best_subset, scale = "Cp") #Izbrane spremenljivke za najboljši model po Cp-statistiki glede na k število spremenljivk v modelu.
+best_subset_summary = summary(best_subset)
+names(best_subset_summary) #da dobiš imena optimalnih spr, ne samo število
+which.min(best_subset_summary$cp)
+
+# grafični prikaz Cp vrednosti vs. število spr k
+# Vrednosti Cp-statistike v odvisnosti od števila spremenljivk k v modelu.
+plot(best_subset_summary$cp, xlab = "Število spremenljivk k", ylab = "Cp")
+points(which.min(best_subset_summary$cp),
+best_subset_summary$cp[which.min(best_subset_summary$cp)],
+pch = 20, col = "red")
+coef(best_subset, which.min(best_subset_summary$cp)) #ocene parametrov v izbranem modelu
+
+# Adjusted R2
+which.max(best_subset_summary$adjr2)
+plot(best_subset_summary$adjr2,
+xlab = "Število spremenljivk", ylab = "Adj R2",
+ylim=c(0.35, 0.6), type="b")
+points(which.max(best_subset_summary$adjr2),
+best_subset_summary$adjr2[which.max(best_subset_summary$adjr2)],
+pch = 20, col = "red")
+points(best_subset_summary$rsq, col = "green", type="b")
+legend("bottomright", c("R2"), col="green", bty="n", lty = 1)
+
+# AIC
+AIC <- numeric()
+for (i in (1:(length(nap.sprem)+1))){
+mod <- lm(best_p_model$formula[i], data = data)
+AIC[i] <- AIC(mod)
+}
+best_p_model$AIC <- AIC
+round(best_p_model$AIC,2)
+
+# Izbira naprej
+mod.null <- lm(siri ~ 1, data = data)
+stepFS <- stepAIC(mod.null,
+scope = ~spr1+spr2+spr3...vse spr...+sprX,
+direction = "forward",
+trace=FALSE)
+stepFS$anova
+
+# Izbira nazaj
+
+# 1. način (predavanja)
+stepBE <- stepAIC(mod.polni, direction = "backward", trace = FALSE)
+stepBE$anova
+# če veš, da so nekatere spr ključne in morajo biti v modelu:lower nastavi
+#stepBE2 <- stepAIC(mod.polni,
+#direction = "backward",
+#scope = list(upper = formula(siri~age+weight+height+neck+
+#chest+abdomen+hip+thigh+knee+
+#ankle+biceps+forearm+wrist),
+#lower = formula(siri~abdomen+height)),
+#trace = FALSE)
+#stepBE2$anova
+
+# 2. način (vaje)
+bwd_sel = regsubsets(odzivna_spr ~., data = train_set, nvmax = cifra, method = "backward")
+bwd_sel_summary <- summary(bwd_sel)
+plot(bwd_sel, scale = "Cp")
+which.min(bwd_sel_summary$cp)
+plot(bwd_sel_summary$cp,
+xlab = "Število spremenljivk k", ylab = "Cp", type="b")
+points(which.min(bwd_sel_summary$cp),
+bwd_sel_summary$cp[which.min(bwd_sel_summary$cp)],
+pch = 20, col = "red")
+coef(bwd_sel, which.min(bwd_sel_summary$cp))
+
+
+# Izbira po korakih
+mod.prvi <- lm(odzivna_spr ~ definiraj_poljubni_model, data = data) # če veš, da so nekatere spr ključne in morajo biti v modelu, jih daš v mod.prvi
+stepB <- stepAIC(mod.prvi,
+scope = ~spr1+spr2+spr3...vse spr...+sprX,
+direction = "both",
+trace = FALSE)
+stepB$anova
+
+```
+
+Kadar imamo na voljo manj napovednih spremenljivk kot je enot, je v praksi izbira nazaj bolj zaželjena, še posebej v primeru kolinearnosti. Po drugi strani izbire nazaj ne moremo uporabiti na visokorazsežnih podatkih, medtem ko izbiro naprej lahko.
+
+
+# Validacija modela (vaje)
+
+* kalibracijski naklon: V idealnem primeru je kalibracijski naklon enak 1. Kalibracijski naklon < 1 nakazuje na preprileganje
+modela učnim podatkom.
+
+```{r}
+preds_m3_1 <- predict(m3_1, newdata = test_set)
+
+plot(preds_m3_1, test_set$odzivna_spr, main="", 
+     ylim=c(4, 8), xlim=c(4, 8),
+     xlab="Napovedi za odzivno_spr", ylab="Dejanske vrednosti")
+abline(coef(lm(test_set$odzivna_spr ~ preds_m3_1)), lty=3)
+abline(0,1, lty=2, col="red")
+legend("bottomright", lty=c(2,3), col=c("red", "black"), 
+       legend=c("Idealni naklon", "Dejanski naklon"), bty="n")
+```
+
+* porazdelitev napovedi za posamezen model: Porazdelitev dejanskih vrednosti na testnem vzorcu in napovedi za odzivno_spr za
+različne napovedne modele.
+
+* lokalna pristranskost napovedi: vrednosti ostankov glede na vrednosti odzivne spremenljivke, ter lokalno napako napovedi, t.j. vrednosti absolutnih ostankov glede na vrednosti odzivne spremenljivke.
+
+```{r}
+odzivna_spr <- test_set$odzivna_spr
+Predicted_odzivna_spr = as.numeric(preds_m3_1)
+data_plot <- data.frame(odzivna_spr, Predicted_odzivna_spr)
+
+ggplot(data_plot, aes(x=odzivna_spr, y=odzivna_spr - Predicted_odzivna_spr)) + 
+  geom_point() + 
+  geom_smooth(method="loess") + 
+  ylab("Ostanki")+
+  xlab("Dejanske vrednosti odzivne_spr v testnem vzorcu") +
+  ggtitle("Lokalna pristranskost napovedi")
+```
+
+* lokalna napaka napovedi
+
+```{r}
+ggplot(data_plot, aes(x=odzivna_spr, y=abs(odzivna_spr-Predicted_odzivna_spr))) +
+geom_point() +
+facet_wrap( ~ method, scale = "fixed", nrow=4) +
+geom_smooth(method="loess") +
+ylab("Absolutni ostanki")+
+xlab("Dejanske vrednosti odzivne_spr v testnem vzorcu") +
+ggtitle("Lokalna napaka napovedi")
+
+```
+
+Za primerjavo modelov lahko izračunamo še naslednje statistike:
+• kalibracijski offset (calibration-in-the-large), ki ga v linearnem modelu izračunamo kar kot povprečje
+razlik med Ytest − Yˆ . V idealnem primeru bo kalibracijski offset enak 0. Kadar ocenjujemo kalibracijo
+modela, moramo vedno upoštevati tako kalibracijski naklon kot offset, saj kalibracijski naklon, ki je
+blizu 1 sam po sebi še ne pomeni dobre kalibriranosti modela za nove enote;
+• kalibracijski naklon;
+• R2 v modelu, ki ocenjuje odvisnost dejanskih vrednosti od napovedi, dobljenih na testnem vzorcu;
+• povprečno napako napovedi.
+
+
+# Modeliranje nekonstantne variance
+
+```{r}
+# z GLS
+model.gls <- gls(odzivna_spr ~ napovedna_spr, weight = varPower(form = ~fitted(.)),
+method = "ML", data = data)
+anova(model.gls, model) #nujno gls na prvem mestu v anovi! #poglej kateri AIC je manjši = boljši model
+
+# Vizualizacija - primerjava ostankov obeh modelov - poglej, če se še vedno vidi "klin" - ali smo odpravili hetersoked?
+plot(fitted(model), rstandard(model))
+points(fitted(model.gls), residuals(model.gls, type = "p"),
+col = "red", pch = 17)
+legend(2500, 2.5, legend = c("model", "model.gls"),
+pch = c(1, 17), col = (1:2), box.lty = 1)
+abline(h = 0)
+
+summary(model.gls)
+compareCoefs(model, model.gls)
+
+
+# napovedi in pripadajoči intervali zaupanja za povprečno napoved
+plot(predictorEffects(model.gls, ~.,
+xlevels = list(x = 4, z.nv = c(cifra1, cifra2, cifra3, cifra4))),
+rows = 2, cols = 1, main = "", layout = c(4,1))
+
+# z LMM
+mod.lme3 <- lme(odzivna_spr ~ številska_napovedna_spr * opsina_napovedna_spr, random = ~1 | skupina_ali_oseba,
+weights = varIdent(form = ~1 | opsina_napovedna_spr), data = data)
+summary(mod.lme3)
+
+# Za primerjavo porazdelitve ostankov glede na eno napovedno spr (npr. spol)
+plot(mod.lme3, resid(.,type = "pearson") ~ fitted(.) | opsina_napovedna_spr,
+id = 0.05, adj = -0.3, pch = 16)
+qqnorm(mod.lme3, ~ resid(.,type = "pearson") | opsina_napovedna_spr, abline = c(0, 1), lty = 2,
+grid = TRUE, id = 0.05, adj = 0.5, pch = 16)
+# namesto tega lahko narediš tudi qqPlot
+
+# model pri katerem dovolimo drugačno varianco po skupinah številske_napovede_spr:
+mod.gls1 <- gls(odzivna_spr ~ številska_napovedna_spr * opisna_napovedna_spr,
+weights = varIdent(form = ~1 | številska_napovedna_spr),
+correlation = corSymm(form = ~1 | skupina_ali_oseba), data = data)
+summary(mod.gls1) #poglej korelacijsko matriko (ocenjeni korelacijski koeficienti napak) → če so cifre približno enake, lahko privzamemo isto varianco
+#pogej še Parameter estimates (ocene razmerij med standardnimi odkloni napak), če so okoli 1, lahko privzamemo isto varianco
+intervals(mod.gls1) #Coefficients: IZ ne smejo vsebovati 0, Variance function: IZ ne smejo vsebovati 1 (če vsebujejo 1, lahko privzamemo enako varianco) → funkcija corCompSymm
+
+
+# Model mod.gls1 zato poenostavimo tako, da odstranimo modeliranje strukture varianc (trije parametri manj v modelu) in korelacije napak modeliramo z corCompSymm (pet parametrov manj v modelu):
+mod.gls2 <- gls(odzivna_spr ~ številska_napovedna_spr * opisna_napovedna_spr, weights = NULL,
+correlation = corCompSymm(form = ~1 | skupina_ali_oseba),
+data = data)
+anova(mod.gls1, mod.gls2) # da še enkrat preverimo katera korelacijska struktura je ustrezna
+
+# za diagnostične grafične prikaze uporabimo normalizirane ostanke, kar pomeni, da ima argument type v funkciji resid vrednost "n"
+plot.lme(mod.gls2, resid(.,type = "n") ~ številska_mapovedna_spr | opisna_napovedna_spr,
+id = 0.05, adj = 0.5, pch = 16) #pogej, ali je variabilnost med številsko_mapovedno_spr ali med opisno_napovedno_spr... popravi model, če ni ok
+# Popravljanje, če je variabilnost v drugi spremenljivki:
+mod.gls3 <- gls(odzivna_spr ~ številska_napovedna_spr * opisna_napovedna_spr,
+weights =varIdent(form = ~1 | opisna_napovedna_spr),
+correlation = corCompSymm(form = ~1 | skupina_ali_oseba),
+data = data)
+anova(mod.gls2, mod.gls3) #preveri, če se izboljša
+plot(mod.gls3, resid(., type = "n") ~ številska_mapovedna_spr | opisna_napovedna_spr, id = 0.05, adj = 0.5, pch = 16) #preverjanje
+qqnorm(mod.gls3, ~ resid(., type = "n") | opisna_napovedna_spr, abline = c(0, 1), id = 0.05, adj = 0.5, pch = 16) #preverjanje
+
+summary(mod.gls3)
+anova(mod.lme3, mod.gls3)
+compareCoefs(mod.lme3, mod.gls3)
+
+# Napovedane vrednosti s pripadajočimi 95 % IZ za povprečno napoved za populacijo za mod.gls3.
+plot(effect(c("številska_napovedna_spr", "opisna_napovedna_Spr"), mod.gls3), ci.style = "bands", multiline = TRUE, main = "")
+
+```
+
+# Linearni mešani modeli
+
+```{r}
+
+# 1. Ali uporabimo lm ali lme?
+# Preveri razpršenost ostankov okrog 0, če niso naključno, uporaba lm ni ok - uporabi lmm (na običajnih grafih ostankov se ne vidi odstopanj!)
+stripchart(residuals(mod.lm) ~ spr_ki_oznacuje_skupino_osebo, vertical = FALSE, pch = 16, las = 2,
+data = data)
+abline(v = 0, lty = 2); abline(h = c(1:27), col = "lightgrey", lty = 2)
+#ali:
+bwplot(getGroups(data) ~ resid(mod.lm))
+
+
+# 2. Ali so različna presečišča ali nakloni ali oboje? (vpliv skupine na kaj?)
+# Odvisnost odzivne_spr od napovedna_spr za vsako osebo/skupino posebej
+plot(data, ylab = "odzivna_spr (enota)", xlab = "napovedna_spr (enota)", pch = 16) # data mora biti vrste nfnGroupedData
+mod.list <- lmList(odzivna_spr ~ napovedna_spr, data = data) #naredi model za vsako osebo/skupino posebej
+plot(intervals(mod.list)) #IZ za b0 in b1 za vsako osebo - če se ne prekrivajo → vpliv posameznika velik, če se prekrivajo  vpliv pozameznika majhen - posebej pogledaš za b0 in b1
+
+
+# 3. naredi lme: 
+# 3.1 Mešani model s slučajnim vplivom na presečišče in na naklon
+mod.lme1 <- lme(odzivna_spr ~ napovedna_spr1 * napovedna_spr2, random = ~napovedna_spr1 | skupina_ali_oseba,
+data = data, method = "REML")
+
+# poglej standardizirani ostanki vs. napovedane vprednosti plot
+plot(mod.lme1)
+
+# 3.2 Mešani model s slučajnim vplivom na presečišče
+mod.lme2 <- lme(odzivna_spr ~ napovedna_spr1 * napovedna_spr2, random = ~1 | skupina_ali_oseba, data = data)
+# S primerjavo modelov mod.lme1 in mod.lme2 testiramo ničelno domnevo, da je varianca slučajnega vpliva osebe na naklon enaka 0.
+anova(mod.lme1, mod.lme2) #test razmerja verjetij (ne F test)
+intervals(mod.lme2) #IZ pri lme
+confint(mod.lm) #IZ pri lm
+
+# Ostanki za mod.lme2 po osebah/skupinah
+plot(mod.lme2, skupina_ali_oseba ~ resid(.), abline = 0, pch = 16)
+
+# stand ostanki vs. fitted values glede glede na npr. spol (napovedna_spr1) → primerjaj varianci ali je pri eni skupini večja kot pri drugi
+plot(mod.lme2, resid(.,type = "pearson") ~ fitted(.) | napovedna_spr1,
+id = 0.05, adj = -0.3, pch = 16)
+
+# Ocene slučajnega vpliva posameznika na vrednost presečišča u0 izpišemo s funkcijo random.effects
+random.effects(mod.lme3)
+
+```
+
+# Testiranje domnev pri LMM
+
+```{r}
+
+# primerjava povprečne vrednosti odzivne spr pri povprečni vrednosti napovedne spr (ker je bila centrirana, drugače pri 0), pri ostalih vrednostih napovedne spr pa to ne velja.
+(test.povp <- emmeans(mod.lme3, pairwise ~ opisna_napovedna_spr)) 
+confint(test.povp)
+
+# primerjava naklonov premic
+test <- emtrends(mod.lme3, var="številska_napovedna_spr")
+summary(test)
+
+```
+
+# Napovedane vrednosti pri LMM
+
+```{r}
+# V funkciji fitted z argumentom levels določimo, za katere napovedi gre; level = 0 določi napovedi za populacijo in level = 1 za posamezne osebe
+cbind(data, round(fitted(mod.lme3, level = 0:1),1))[1:8,]
+# Napovedi za populacijo (fixed) so za vse vrednosti opisne_napovedna_spr enake (npr spol); napovedi za skupina_ali_oseba (Subject) pa se med osebami razlikujejo.
+
+plot(augPred(mod.lme3, level = 0), grid = TRUE, pch = 16) # kako se spreminja odzivna_spr glede na številsko_napovedno_Spr in opisno_napovedno_spr za POPULACIJO
+plot(augPred(mod.lme3, level = 1), pch = 16, grid = TRUE) # primerjaj tedva grafa - pri katerem se črte bolj ujemajo s pikami?
+
+
+# Za poopulacijo dobimo tudi z effect - primerjava dveh premic za vsako vrednost opisne_napovedne_spr (npr. spol)
+# Napovedane vrednosti s pripadajočimi 95 % IZ za povprečno napoved za populacijo za mod.lme3.
+plot(effect(c("številska_napovedna_spr","opisna_napovedna_spr"), mod.lme3), ci.style = "bands", multiline = TRUE, main = "")
+
+```
+
+# Modeliranje avtokorelacije napak
+
+```{r}
+ACF(mod.o1.lme, maxLag = 10)
+# Avtokorelogram
+plot(ACF(mod.o1.lme, maxLag = 10, resType = "n"), alpha = 0.05) #vse palcke, ki štlijo ven, pomenijo stat znacilno avtokorelacijo v napakah v modelu
+
+# Modeliranje avtokorelacije napak: avtoregresijski model prvega reda AR
+mod.o1.lme.cor <- update(mod.o1.lme, correlation = corAR1())
+anova(mod.o1.lme, mod.o1.lme.cor) #preveri, če je bolje
+intervals(mod.o1.lme.cor) #Phi=kako so avtokorelirane napake
+
+```
+
+# Vizualizacije narejenih modelov
+
+## Smo uporabljali pri poly in zlepkih:
+
+```{r}
+
+# Prikažimo napovedi modela s 95% IZ za povprečno in posamično vrednost s funkcijo predict()
+# Napovedi odzivna_spr na podlagi modela s 95 % intervali zaupanja za povprečno (modra) oz. posamično napoved (rdeča).
+
+napovedna_spr.nap <- seq(from = min(data$napovedna_spr), to = max(data$napovedna_spr))
+napovedi.povp <- predict(model, newdata = data.frame(napovedna_spr = napovedna_spr.nap), interval = "confidence")
+napovedi.pos <- predict(model, newdata = data.frame(napovedna_spr = napovedna_spr.nap), interval="prediction")
+
+plot(data$napovedna_spr, data$odzivna_spr, xlim = range(data$napovedna_spr), cex = 0.5, col ="darkgrey", xlab="napovedna_spr", ylab="odzivna_spr", ylim=c(3, 6))
+lines(napovedna_spr.nap, napovedi.povp[,"fit"], lwd = 2, col=" blue")
+matlines (napovedna_spr.nap, napovedi.povp[, c("lwr","upr")], lwd = 2, col = " blue", lty = 2)
+matlines (napovedna_spr.nap, napovedi.pos[, c("lwr","upr")], lwd = 2, col = " red", lty = 2)
+
+
+
+# Prikaz povprečne napovedi
+plot(predictorEffects(model), main = "", ylim=c(3, 6))
+
+
+
+# Primerjava polinomske regresije in zlepkov (plotano na istem grafu)
+plot(data$napovedna_spr, data$odzivna_spr, xlim = range(data$napovedna_spr), cex = 0.5, col ="darkgrey", xlab="napovedna_spr", ylab="napovedna_spr")
+lines(napovedna_spr.nap, predict(lm(odzivna_spr ~ poly(napovedna_spr, cifra), data = data), newdata = data.frame(napovedna_spr=napovedna_spr.nap)), lwd = 2, col="blue")
+lines(napovedna_spr.nap, predict(lm(odzivna_spr ~ ns(napovedna_spr, df=cifra), data = data), newdata = data.frame(age=age.nap)), lwd = 2, col="red")
+legend("bottomright", c("Polinomska regresija", "Regresija zlepkov"),
+lty=c(1,1), col=c("blue", "red"), bty="n")
+
+
+
+# Slika napovedi in 95 % intervali zaupanja za povprečne napovedi (za primerjavo različnih modelov)
+plot1<-plot(Effect(c("napovedna_spr"), model.kvad, xlevels=list(napovedna_spr=seq(cifra_od, cifra_do, cifra_po_koliko))), 
+     ci.style="bands", xlab="napovedna_spr",ylab="odzivna_spr (enota)",
+     main="", ylim=c(0,8))
+print(plot1)
+# modelu model.bs določimo df, ker samo na tako definiranem modelu lahko uporabimo funkcijo Effect
+model.bs.3a<-lm(prid1.ha ~ bs(napovedna_spr, df=6), data=data) 
+plot2<-plot(Effect(c("napovedna_spr"), model.bs.3a, xlevels=list(napovedna_spr=seq(cifra_od, cifra_do, cifra_po_koliko))),
+     ci.style="bands", xlab="napovedna_spr",ylab="odzivna_spr (enota)",
+     main="", ylim=c(0,8))
+model.ns.3a<-lm(prid1.ha ~ ns(napovedna_spr, df=4), data=data) 
+plot3<-plot(Effect(c("napovedna_spr"), model.ns.3a, xlevels=list(napovedna_spr=seq(cifra_od, cifra_do, cifra_po_koliko))),
+     ci.style="bands", xlab="napovedna_spr",ylab="odzivna_spr (enota)",
+     main="", ylim=c(0,8))
+grid.arrange(plot1, plot2, plot3, ncol=3)
+
+```
+
+
+* Kateri grafični prikaz omogoča diagnostiko interakcije dveh številskih spremenljivk?
+
+plot(Effect(c("Advertising", "Price", "ShelveLoc"), model.stol.brez, partial.residuals = TRUE), ci.style = "none")
+
+* Kako bi preverili statistično značilnost spremenljivke ShelveLoc ob upoštevanju ostalih dveh spremenljivk v modelu? Bodite pozorni na vrstni red napovednih spremenljivk v modelu. Zapišite ničelno domnevo, ki jo testirate.
+
+anova(model.stol.brez)
+
+* Povprečna modelska napoved (Naredimo povprečne modelske napovedi za Sales v odvisnosti od Price in Advertising za posamezno
+vrednosti ShelveLoc s 95 % intervali zaupanja.)
+
+r1 <- plot(Effect(c("Price", "ShelveLoc"), model.stol.brez), main="",
+multiline=TRUE, ci.style="bands", ylim=c(0, 17))
+r2 <- plot(Effect(c("Advertising", "ShelveLoc"), model.stol.brez), main="",
+multiline=TRUE, ci.style="bands", ylim=c(0, 17))
+ggarrange(r1, r2, ncol=2)
+
+
+* Kaj se zgodi, če v modelu nastavimo parameter raw = TRUE? model.stopnja4.raw <- lm(logwage ~ poly(age, 4, raw = TRUE), data = Wage)
+
+Če funkcijo poly() uporabimo brez privzete nastavitve argumenta raw=FALSE, štiri bazne funkcije ne predstavljajo ortogonalnih polinomov, temveč je vsaka bazna funkcija linearna kombinacija spremenljivk age, age2, age3 in age4. Te funkcije med seboj niso neodvisne in rezultati testiranja ničelnih domnev o parametrih v povzetku linearnega modela niso enaki, kot pri F-testu za gnezdene modele. Vrednosti ocen parametrov so drugačne, v obeh primerih pa dobimo enake napovedane vrednosti in enak koeficient determinacije.
+
+* spremenljivka asimetrična v desno - logaritmiraj jo! (to smo naredili pri Salary)

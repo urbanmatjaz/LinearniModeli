@@ -1,0 +1,73 @@
+---
+title: "MATJAZ_URBAN"
+author: "Urban Matjaž"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, packages & libraries, include=FALSE, echo=FALSE, warning = FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE, echo=FALSE, warning = FALSE, message = FALSE}
+library(ggplot2)
+library(ggpubr)
+library(GLMsData)
+library(effects)
+library(emmeans)
+library(car)
+```
+
+
+```{r, include=FALSE, echo=FALSE, warning = FALSE, message = FALSE}
+data(lungcap)
+str(lungcap)
+summary(lungcap)
+```
+
+
+```{r}
+# Ht, telesna višina v cm
+
+lungcap$Ht <- lungcap$Ht*2.54
+
+#  Smoke naj bo faktor z vrednostma "Ne" in "Da"
+
+lungcap$Smoke <- factor(lungcap$Smoke, labels=c("Ne", "Da"))
+levels(lungcap$Gender)
+
+# zamenjamo oznaki za spol za grafične prikaze
+
+levels(lungcap$Gender) <- c("Ženske", "Moški")  
+```
+
+```{r}
+mod2.int <- lm(log(FEV) ~ Age*Ht*Gender*Smoke, data=lungcap) 
+par(mfrow=c(2,2))
+plot(mod2.int)
+summary(mod2.int)
+```
+
+# Splošna enačba modela
+\[
+\hat{y}_i = \beta_0 + \beta_1 \cdot \text{Age}_i + \beta_2 \cdot \text{Ht}_i + \beta_3 \cdot \text{Gender}_i + \beta_4 \cdot \text{Smoke}_i 
++ \beta_5 \cdot (\text{Age}_i \cdot \text{Ht}_i) + \beta_6 \cdot (\text{Age}_i \cdot \text{Gender}_i) 
++ \beta_7 \cdot (\text{Age}_i \cdot \text{Smoke}_i) 
+\]
+\[
++ \beta_8 \cdot (\text{Ht}_i \cdot \text{Gender}_i) + \beta_9 \cdot (\text{Ht}_i \cdot \text{Smoke}_i) 
++ \beta_{10} \cdot (\text{Gender}_i \cdot \text{Smoke}_i) 
++ \beta_{11} \cdot (\text{Age}_i \cdot \text{Ht}_i \cdot \text{Gender}_i) 
++ \beta_{12} \cdot (\text{Age}_i \cdot \text{Ht}_i \cdot \text{Smoke}_i) 
+\]
+\[
++ \beta_{13} \cdot (\text{Age}_i \cdot \text{Gender}_i \cdot \text{Smoke}_i) 
++ \beta_{14} \cdot (\text{Ht}_i \cdot \text{Gender}_i \cdot \text{Smoke}_i) 
++ \beta_{15} \cdot (\text{Age}_i \cdot \text{Ht}_i \cdot \text{Gender}_i \cdot \text{Smoke}_i) + \epsilon_i
+\]
+
+
+```{r, echo=FALSE, warning = FALSE, message = FALSE}
+plot(Effect(c("Age","Ht","Gender","Smoke"), mod2.int, partial.residuals=TRUE), main="")
+```
+

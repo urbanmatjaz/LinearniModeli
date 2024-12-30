@@ -3,6 +3,8 @@ title: "MATJAZ_URBAN"
 author: "Urban Matjaž"
 date: "`r Sys.Date()`"
 output: pdf_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, packages & libraries, include=FALSE, echo=FALSE, warning = FALSE, message = FALSE}
@@ -66,8 +68,31 @@ summary(mod2.int)
 + \beta_{15} \cdot (\text{Age}_i \cdot \text{Ht}_i \cdot \text{Gender}_i \cdot \text{Smoke}_i) + \epsilon_i
 \]
 
+## Ženske nekadilke
+
+\[
+\log(\text{FEV}) = -2.55 + 0.12 \cdot \text{Age} + 0.02 \cdot \text{Ht} - 0.0006 \cdot (\text{Age} \cdot \text{Ht})
+\]
+
+## Ženske kadilke
+
+\[
+\log(\text{FEV}) = (-2.55 + 12.05) + (0.12 - 0.84) \cdot \text{Age} + (0.02 - 0.07) \cdot \text{Ht} + (0.005 - 0.0006) \cdot (\text{Age} \cdot \text{Ht})
+\]
+
+## Moški nekadilci
+
+\[
+\log(\text{FEV}) = (-2.55 + 0.98) + (0.12 - 0.14) \cdot \text{Age} + (0.02 - 0.006) \cdot \text{Ht} + (0.0008 - 0.0006) \cdot (\text{Age} \cdot \text{Ht})
+\]
+
+## Moški kadilci
+
+\[
+\log(\text{FEV}) = (-2.55 + 0.98 + 12.05 - 13.88) + (-0.14 - 0.84 + 0.87) \cdot \text{Age} + (-0.006 - 0.07 + 0.08) \cdot \text{Ht} + (0.0008 + 0.005 - 0.005 - 0.0006) \cdot (\text{Age} \cdot \text{Ht})
+\]
+
 
 ```{r, echo=FALSE, warning = FALSE, message = FALSE}
 plot(Effect(c("Age","Ht","Gender","Smoke"), mod2.int, partial.residuals=TRUE), main="")
 ```
-

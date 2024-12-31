@@ -1,0 +1,101 @@
+---
+title: "DN2_Matjaz"
+author: "Urban Matjaz"
+date: "2024-12-31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+library(GLMsData)
+library(knitr)
+```
+
+
+# 1. Kako velikost vzorca vpliva na diagnostiko grafov ostankov?
+
+Pri manjših vzorcih je variabilnost večja, zaradi česar je težko razločiti med naključnim šumom in dejanskimi problemi v modelu. Prav tako imajo posamične točke v manjših vzorcih večji vpliv in posledično lahko pripeljejo do napačnih zaključkov.
+
+
+# 2. Kako na grafu ostankov zaznamo prisotnost heteroskedastičnosti?
+
+Variabilnost ostankov se pri večjih ocenjenih vrednostih veča ali manjša, torej ni enakomerna pri vseh napovednih vrednostih.
+
+```{r, echo=FALSE}
+data(lungcap)
+# Ht, telesna višina v cm
+
+lungcap$Ht = lungcap$Ht*2.54
+
+#  Smoke naj bo faktor z vrednostma "Ne" in "Da"
+
+lungcap$Smoke = factor(lungcap$Smoke, labels=c("Ne", "Da"))
+
+# zamenjamo oznaki za spol za grafične prikaze
+
+levels(lungcap$Gender) = c("Ženske", "Moški")  
+mod3.int = lm(FEV ~ Gender * Smoke * Ht, data=lungcap) 
+```
+
+## Primer heteroskedastičnih podatkov
+```{r, echo=FALSE}
+plot(mod3.int, which = 1)
+```
+
+
+# 3. Kako na grafu opazimo, da ostanki niso porazdeljeni normalno?
+
+Na Q-Q plotu so na x osi predstavljeni teoretični kvantili iz normalne porazdelitve na y osi pa dejanski kvantili ostankov iz našega primera. V primeru, da so ostanki na grafu v obliki črke S to kaže na asimetrijo porazdelitve ostankov. Če se ostanki oddaljujejo od diagonale na koncih to kaže na preveliko število prevelikih ostankov.
+
+# 4.  Na kaj vpliva heteroskedastičnost?
+
+Heteroskedastičnost vpliva na:
+
+ - Standardne napake regresijskih koeficientov
+ 
+ - Intervale zaupanja regresijskih koeficientov
+ 
+ - Mere prileganja modela (R^2...)
+ 
+ \begin{itemize}
+  \item Standardne napake regresijskih koeficientov,
+  \item Intervale zaupanja regresijskih koeficientov,
+  \item Mere prileganja modela (R^2...)
+\end{itemize}
+
+# 5. S simulacijami pokažite, kaj kaj se zgodi z velikostjo testa v primeru kršitve predpostavke o konstantni varianci.
+
+```{r}
+set.seed(64220387)
+
+velikost_testa = function(hts = FALSE, n_sim = 1000, n = 50, alpha = 0.05, beta_0 = 0, beta_1 = 0) {
+  stev_zavrnitev = 0
+  for (i in 1:n_sim) {
+    x = runif(n, 0, 10)
+    
+    if (hts) {
+      eps = rnorm(n, mean = 0, sd = 0.5 + 0.1 * x)
+    } else {
+      eps = rnorm(n)
+    }
+    
+    y = beta_0 + beta_1 * x + eps
+    model = lm(y ~ x)
+    p_value = summary(model)$coefficients[2, 4]
+    if (p_value < alpha) {
+      stev_zavrnitev = stev_zavrnitev + 1
+    }
+  }
+  return(stev_zavrnitev / n_sim)
+}
+
+velikost_homoskedasticnost = velikost_testa(hts = FALSE, beta_0 = 5) # beta_0 nima vpliva na rezultat
+velikost_heteroskedasticnost = velikost_testa(hts = TRUE, beta_0 = 5)
+
+rez <- data.frame(Predpostavka = c("Homoskedastičnost", "Heteroskedastičnost"), "Velikost testa" = c(velikost_homoskedasticnost, velikost_heteroskedasticnost))
+
+kable(rez, caption = "Vpliv heteroskedastičnosti na velikost testa")
+
+```
+
+Opazimo, da se v primeru heteroskedastičnosti velikost testa poveča, kar pomeni, da je test preveč liberalen in posledično prevečkrat zavrnemo ničelno domnevo tudi kadar ne moremo trditi, da le ta ne drži.

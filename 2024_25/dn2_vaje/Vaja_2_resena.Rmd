@@ -1,0 +1,595 @@
+---
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+header-includes:
+  \usepackage{float}
+ \floatplacement{figure}{H}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+\renewcommand{\figurename}{Slika}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "",
+                      fig.align = 'center', 
+                      fig.width = 5, 
+                      fig.height = 4,
+                      warning = FALSE)
+```
+
+\section{Vaja 2: Diagnostika linearnega modela}
+
+Seznam potrebnih `R` paketov:
+
+```{r message=FALSE}
+library(ggplot2)
+library(car)
+library(effects)
+library(dplyr)
+library(knitr)
+```
+
+\subsection{1. Preverjanje predpostavk linearnega regresijskega modela na podlagi ostankov modela}
+
+Spodaj je definirana funkcija `f.generiranje.lm.1()` za generiranje $n$ parov
+podatkov enostavnega linearnega regresijskega modela:
+
+
+$$y = \beta_0 + \beta_1 \cdot x_1 + \epsilon,$$
+
+kjer:
+
+\begin{itemize}
+  \item $x_{1,i} \sim U(1,1000)$ (enakomerna diskretna porazdelitev),
+  \item $\epsilon_i \sim N(0, \sigma^2).$
+\end{itemize}
+
+```{r}
+f.generiranje.lm.1 <- function(beta0, beta1, sigma, n) {
+  
+  # generiranje vrednosti za x1 
+  x1 <- sample(1:1000, size = n, replace = TRUE)
+  # generiranje napak 
+  epsilon <- rnorm(n, 0, sigma)
+  # izračun napovedne spremenljivke za model (parametri = vhodni argumenti)
+  y <- beta0 + beta1 * x1  + epsilon
+  
+  # podatke spravimo v podatkovni okvir in vrnemo kot rezultat funkcije
+  data.frame(x1 = x1,  epsilon = epsilon, y = y)
+  
+}
+```
+
+
+\textbf{a)} Pripravite funkcijo `f.generiranje.lm.2()` za generiranje `n` parov podatkov 
+linearnega  regresijskega modela:
+
+$$y = \beta_0 + \beta_1 \cdot x_1 + \beta_2 \cdot x_2 + \epsilon,$$
+kjer:
+
+\begin{itemize}
+  \item $x_{1,i} \sim U(50, 100)$ (enakomerna zvezna porazdelitev),
+  \item $x_{2,i} \sim Poiss(5)$ in
+  \item $\epsilon_i \sim N(0, \sigma^2)$
+\end{itemize}
+
+
+Funkcija `f.generiranje.lm.2()` naj sprejme naslednje argumente:
+
+\begin{itemize}
+  \item $\beta_0$ (`beta0`), 
+  \item $\beta_1$ (`beta1`),
+  \item $\beta_2$ (`beta2`),
+  \item $\sigma$ (`sigma`),
+  \item velikost vzorca (`n`).
+\end{itemize}
+
+```{r}
+f.generiranje.lm.2 <- function(beta0, beta1, beta2, sigma, n) {
+  
+  # generiranje vrednosti za x1 in x2
+  x1 <- runif(n, 50, 100)
+  x2 <- rpois(n, 5)
+  
+  # generiranje napak 
+  epsilon <- rnorm(n, 0, sigma)
+  # izračun napovedne spremenljivke za model (parametri = vhodni argumenti)
+  y <- beta0 + beta1 * x1 + beta2 * x2 + epsilon
+  
+  # podatke spravimo v podatkovni okvir in vrnemo kot rezultat funkcije
+  data.frame(x1 = x1, x2 = x2, epsilon = epsilon, y = y)
+  
+}
+```
+
+\textbf{b)} Za parametre:
+
+\begin{itemize}
+  \item $\beta_0 = 150$, 
+  \item $\beta_1 = 4$,
+  \item $\beta_2 = 2.5$ ,
+  \item $\sigma = 4$,
+  \item $n = 100$
+\end{itemize}
+
+desetkrat zaženite funkcijo `f.generiranje.lm.2()`, naredite linearni regresijski 
+model in primerjajte prve tri grafe ostankov. \textbf{Opazujte, ali ostanki modela 
+izpolnjujejo predpostavke linearnega regresijskega modela.} Kolikokrat izgleda, kot da ostanki
+niso v skladu s predpostavkami?
+
+```{r fig.height=6, out.height="90%"}
+# zaženemo funkcijo in rezultate funkcije shranimo v vektor
+generirani.podatki <- f.generiranje.lm.2(150, 4, 2.5, 4, 100)
+# narišemo ostanke za linearni regresijski model na generiranih podatkih
+par(mfrow = c(2,2))
+plot(lm(y ~ x1 + x2, data = generirani.podatki), which = c(1:3))
+```
+
+Spremenite velikost vzorca na $13$ ($n = 13$) in opazujte, kaj se v primeru
+manjšega vzorca dogaja z ostanki. Za generiranje uporabite 
+vrednosti semena, ki so zapisane v vektorju `semena`.
+
+```{r}
+# vektor semen
+semena <- c(82, 145, 153, 217, 318, 411, 514, 8106)
+```
+
+```{r fig.height=6, out.height="90%"}
+set.seed(semena[1])
+generirani.podatki <- f.generiranje.lm.2(150, 4, 2.5, 4, 13)
+# narišemo ostanke za linearni regresijki model na generiranih podatkih
+par(mfrow = c(2,2))
+plot(lm(y ~ x1 + x2, data = generirani.podatki), which = c(1:3))
+```
+
+Kolikokrat ostanki ne kažejo izpolnjenosti predpostavk v primeru majhnega vzorca? Na kratko
+napišite povzetek vaših ugotovitev o vplivu velikosti vzorca na grafe ostankov.
+
+\textbf{c)} Definirajte funkcijo `f.generiranje.lm.1.H()`, ki vsebuje elemente funkcije
+`f.generiranje.lm.1()`, s tem da krši predpostavko o konstantni varianci.
+Varianca napak naj bo sorazmerna z $x_1$.
+
+
+```{r }
+f.generiranje.lm.1.H <- function(beta0, beta1, n) {
+  
+  # generiranje vrednosti za x1 
+  x1 <- sample(1:1000, size = n, replace = TRUE)
+  # generiranje napak; napake so sorazmerne z vrednostmi xi 
+  epsilon <- rnorm(n, 0, x1 * 0.8)
+  # izračun napovedne spremenljivke za model (parametri = vhodni argumenti)
+  y <- beta0 + beta1 * x1  + epsilon
+  
+  # podatke spravimo v podatkovni okvir in vrnemo kot rezultat funkcije
+  data.frame(x1 = x1,  epsilon = epsilon, y = y)
+  
+}
+```
+
+Za parametre:
+
+\begin{itemize}
+  \item $\beta_0 = 150$, 
+  \item $\beta_1 = 4$,
+  \item $n = 100$
+\end{itemize}
+
+desetkrat zaženite funkcijo `f.generiranje.lm.1.H()`, naredite linearni regresijski 
+model in opazujte prve tri grafe ostankov.
+
+
+```{r fig.height=6, out.height="90%"}
+# zaženemo funkcijo in rezultate funkcije shranimo v vektor
+generirani.podatki.H <- f.generiranje.lm.1.H(150, 4, 100)
+# narišemo ostanke za linearni regresijki model na generiranih podatkih
+par(mfrow = c(2,2))
+plot(lm(y ~ x1, data = generirani.podatki.H), which = c(1:3))
+```
+
+Opazujte ostanke prvega in tretjega grafa ob spreminjanju odvisnosti variance
+napak od  spremenljivke $x_1$ (npr. večkratnika $x_1$). Kakšne so vaše ugotovitve?
+
+\textbf{d)} Definirajte funkcijo `f.generiranje.lm.1.N()` tako, da kršite predpostavko o normalnosti ostankov.
+Namesto normalne porazdelitve ostankov uporabite eksponentno porazdelitev.
+(Za vajo lahko poskusite še s katero drugo porazdelitvijo, npr. gama ali beta
+porazdelitvijo.)
+
+
+```{r }
+f.generiranje.lm.1.N <- function(beta0, beta1, n) {
+  
+  # generiranje vrednosti za x1 
+  x1 <- sample(1:1000, size = n, replace = TRUE)
+  # generiranje napak 
+  epsilon <- rexp(n, rate = 2)
+  #epsilon <- rgamma(n, shape = 2)
+  # izračun napovedne spremenljivke za model (parametri = vhodni argumenti)
+  y <- beta0 + beta1 * x1  + epsilon
+  
+  # podatke spravimo v podatkovni okvir in vrnemo kot rezultat funkcije
+  data.frame(x1 = x1,  epsilon = epsilon, y = y)
+  
+}
+```
+
+
+Za parametre:
+
+\begin{itemize}
+  \item $\beta_0 = 150$, 
+  \item $\beta_1 = 4$,
+  \item $n = 100$
+\end{itemize}
+
+
+desetkrat zaženite funkcijo `f.generiranje.lm.1.N()`, naredite linearni regresijski 
+model in opazujte prve tri grafe ostankov. Kateri graf preverja predpostavko
+o normalnosti? Kakšna so odstopanja?
+
+
+```{r fig.height=6, out.height="90%"}
+# zaženemo funkcijo in rezultate funkcije shranimo v vektor
+generirani.podatki.N <- f.generiranje.lm.1.N(150, 4, 100)
+# narišemo ostanke za linearni regresijki model na generiranih podatkih
+par(mfrow = c(2,2))
+plot(lm(y ~ x1, data = generirani.podatki.N), which = c(1:3))
+```
+
+Povzemite svoje ugotovitve.
+
+\subsection{2. Interpretacija modela z večimi napovednimi spremenljivkami}
+
+Kadar je v model vključenih več napovednih spremenljivk, postane gradnja modela hitro precej bolj kompleksna. Treba se je odločiti, katere spremenljivke je potrebno vključiti v model, ali so prisotni le glavni vplivi ali tudi interakcije ter kako bomo definirali številske in opisne spremenljivke, da bomo v modelu ustrezno opisali morebitno nelinearnost oz. diskretnost spremenljivk. Tudi interpretacija regresijskih parametrov postane bolj zapletena, saj interpretacija posameznega parametra postane odvisna od drugih spremenljivk v modelu. Načeloma lahko dani parameter interpretiramo kot povprečno oz. pričakovano razliko vrednosti odzivne  spremenljivke, če primerjamo dve osebi (enoti), ki se razlikujeta za eno enoto dane napovedne spremenljivke, medtem ko so ostale vrednosti napovednih spremenljivk za obe enoti enake. Torej, posamezen regresijski parameter $\beta_j$, $j=1,\ldots,k$ meri pogojni vpliv spremenljivke $X_j$. To pomeni, da se interpretacija parametra $\beta_j$ spremeni, če se spremeni nabor napovednih spremenljivk v modelu in obstaja povezanost (korelacija) $X_j$ z drugimi napovednimi spremenljivkami v modelu. 
+
+\subsubsection{Primer 1: Več koreliranih številskih spremenljivk v modelu}
+
+```{r, echo=FALSE}
+bodyfat <- read.table(url("https://jse.amstat.org/datasets/fat.dat.txt"))
+
+bodyfat <- bodyfat[, -c(8:9)]
+
+colnames(bodyfat) <- c("case", "brozek", "siri", "density", "age", "weight", 
+                       "height", "neck","chest", "abdomen", "hip", "thigh", 
+                       "knee", "ankle",  "biceps", "forearm", "wrist")
+
+## iz lb v kg
+bodyfat$weight <- bodyfat$weight * 0.454
+## iz in v cm
+bodyfat$height <- bodyfat$height * 2.54
+
+bodyfat$height[bodyfat$case==42] <- 176.53  #glej https://jse.amstat.org/datasets/fat.txt
+```
+
+```{r}
+## za dani primer bomo izključili tudi osebo 39, za katero smo v prejšnji vaji videli, 
+## da ima znaten vpliv na rezultate modela
+bodyfat <- bodyfat[-which(bodyfat$case==39),] 
+```
+
+Radi bi pojasnili odstotek telesne maščobe s 3 spremenljivkami: telesno težo, višino in obsegom trebuha.
+
+```{r}
+bodyfat <- bodyfat %>%
+  select(siri, weight, height, abdomen)
+```
+```{r}
+summary(bodyfat)
+```
+
+Spomnimo se močnih parnih korelacij, ki so značilne za dani podatkovni okvir. Poglejmo Pearsonove koeficiente korelacije med posameznimi pari spremenljivk v podatkovnem okviru:
+
+```{r}
+kable(cor(bodyfat), 
+      digits=2,
+      caption = "Pearsonovi korelacijski koeficienti med pari spremenljivk
+      siri, weight, height in abdomen v podatkovnem okviru bodyfat.")
+```
+
+```{r fig.width=7, fig.height=6, out.width="90%", fig.cap="Matrika razsevnih grafikonov za izbrane spremenljivke v podatkovnem okviru \\texttt{bodyfat}."}
+pairs(bodyfat)
+```
+Na podlagi 3 napovednih spremenljivk naredimo 4 potencialne modele:
+
+```{r}
+m1 <- lm(siri~weight, bodyfat)
+
+m2 <- lm(siri~weight + height, bodyfat)
+
+m3 <- lm(siri~weight + abdomen, bodyfat)
+
+m4 <- lm(siri~weight + height + abdomen, bodyfat)
+```
+
+
+```{r}
+compareCoefs(m1, m2, m3, m4)
+```
+
+Vidimo, da je ocena parametra za maso v 4 različnih modelih precej drugačna - ne le da spremeni velikost, temveč celo predznak. To je zato, ker je interpretacija mase v štirih modelih bistveno drugačna. Tudi za višino vidimo, da je bodisi irelevantna bodisi kaže močno povezanost s odstotkom telesne maščobe, odvisno od tega, ali smo v modelu upoštevali tudi obseg trebuha.
+
+```{r}
+round(c(summary(m1)$adj.r.squared, 
+        summary(m2)$adj.r.squared,
+        summary(m3)$adj.r.squared,
+        summary(m4)$adj.r.squared), 2)
+```
+Primerjava vrednosti prilagojenih $R^2$ 4 modelov nakazuje na pomembno vlogo spremenljivke `abdomen` pri pojasnjevanju procenta telesne maščobe. 
+
+Potrebno se je zavedati, da bo vsakršna izbira spremenljivk v (linearni) model, v katerega so vključene skorelirane napovedne spremenljivke, vedno spremenila interpretacijo modela. Tega se moramo zavedati predvsem v situacijah, ko nas zanima interpretacija ocen parametrov modela.
+
+\subsubsection{Primer 2: Številska in opisna spremenljivka v modelu}
+
+V datoteki \textit{IQ.txt} so podatki o rezultatih IQ testa `kid_score` za 434 otrok in o ocenjenem IQ-ju njihovih mater `mom_iq`. Za vsako od mater imamo še podatek o tem, ali je končala srednjo šolo ali ne, `mom_hs`. Kadar ocenjujemo multipli regresijski model, nas v praksi pogosto zanima naslednje:
+
+```{=tex}
+\begin{enumerate}
+  \item Ali vsaj ena od napovednih spremenljivk lahko pojasni del variabilnosti otrokovega IQ-ja? $H_0: \beta_1=\beta_2=\ldots=\beta_k=0$
+  \item Če lahko zavrnemo hipotezo iz prve točke: ali vse napovedne spremenljivke pomagajo pojasniti del variabilnosti napovedne spremenljivke ali zadostuje le podmnožica teh spremenljivk (več o tem v poglavju o izbiri modela)?
+  \item Kolikšna je povezanost med napovednimi in odzivno spremenljivko (npr. kolikšno spremembo vrednosti otrokovega rezultata na testu lahko v povprečju pričakujemo, če primerjamo dva otroka mater, ki sta obe končali srednjo šolo, a se njun IQ razlikuje za 1 točko). Kako natančne so naše ocene?
+  \item Kako natančno lahko napovemo rezultat na testu za nove otroke? 
+  \item Kako dobro se model prilega podatkom? Je v modelu prisotna nelinearnost? Ali obstaja interakcija med napovednima spremenljivkama?
+\end{enumerate}
+```
+
+```{r}
+data <- read.table("IQ.txt", header=T)
+str(data)
+data$mom_hs <- factor(data$mom_hs)
+```
+
+```{r fig.width=8, fig.height=4, out.width="90%", fig.cap="Univariatne porazdelitve spremenljivk v podatkovnem okviru \\texttt{IQ}."}
+# poglejmo najprej univariatne porazdelitve spremenljivk v podatkovnem okviru 
+par(mfrow=c(1,3))
+hist(data$kid_score, main="", xlab="Otrokov rezultat na IQ-testu", ylab="Frekvenca",
+     ylim=c(0,100))
+hist(data$mom_iq, main="", xlab="Materin izmerjeni IQ",ylab="Frekvenca", ylim=c(0,60))
+boxplot(data$mom_iq ~ data$mom_hs, xlab = "Končana srednja šola", 
+        ylab = "Materin izmerjeni IQ")
+```
+
+```{r message=FALSE, fig.width=7, fig.height=4, out.width="80%", fig.cap="Odvisnost otrokovega rezultata na IQ testu od materinega izmerjenega IQ-ja in materine izobrazbe."}
+#Ali obstaja linearna povezanost med spremenljivkama?
+ggplot(data=data, aes(x=mom_iq, y=kid_score)) +
+  geom_point() + 
+  geom_smooth(se=FALSE) + geom_smooth(method="lm", se=FALSE, col="red") +
+  facet_wrap(~mom_hs) +
+  xlab("Materin IQ") +
+  ylab("Otrokov rezultat na IQ-testu") 
+```
+
+Graf nakazuje, da je zveza med `mom_iq` in `kid_score` drugačna glede na `mom_hs` in za `mom_hs=1` rahlo nelinearna. 
+
+Za vajo bomo v prvem modelu predpostavili linearno odvisnost med `kid_score` in `mom_iq`. Vanj bomo vključili le glavne vplive obeh spremenljivk, kar pomeni, da bomo predpostavili, da sta naklona enaka ne glede na `mom_hs`:
+
+
+```{r}
+m1 <- lm(kid_score ~ mom_hs + mom_iq, data=data)
+```
+
+Osnovni diagnostični grafi ostankov:
+
+```{r fig.width=7, fig.height=6, out.width="80%", fig.cap="Ostanki za model \\texttt{m1}."}
+par(mfrow=c(2,2))
+plot(m1)
+```
+
+Ostanki za `m1` izgledajo sprejemljivi. Poglejmo še grafikon parcialnih ostankov posebej glede na `mom_hs`, ki nam lahko pomaga pri odkrivanju interakcij ter nelinearnosti zvez. 
+
+```{r fig.width=8, fig.height=5, out.width="70%", fig.cap="Parcialni ostanki za model \\texttt{m1}."}
+plot(Effect(c("mom_iq","mom_hs"), m1, partial.residuals=TRUE), main="")
+```
+Gladilnika kažeta, da se `kid_score` v odvisnosti od `mom_iq` spreminja drugače glede na materino izobrazbo, kar nakazuje prisotnost interakcije med `mom_iq` in `mom_hs`. Poleg tega se gladilnik pri `mom_hs=1` ne prilega dobro premici, kar nakazuje, da bi lahko bila v modelu prisotna nelinearnost v odvisnosti `kid_score` od `mom_iq` in `mom_hs=1`.
+
+Model z eno številsko in eno opisno spremenljivko, ki predpostavlja le glavne (aditivne) vplive na odzivno spremenljivko, bo dal ocene parametrov dveh vzporednih premic. 
+
+Čeprav model ni ustrezen, si za vajo oglejmo povzetek modela ter interpretirajmo ocene parametrov:
+
+```{r}
+summary(m1)
+```
+
+Zapišimo model `m1`: `r round(m1$coefficients[1], 2)` + `r round(m1$coefficients[2], 2)` $\ast$ `mom_hs` + `r round(m1$coefficients[3], 2)` $\ast$ `mom_iq`.
+
+Ker ima `mom_hs` dve možni vrednosti, `mom_hs` $\in\{0,1\}$, dobimo oceni za dve regresijski premici z različnima presečiščema in enakima naklonoma:
+
+- `mom_hs=0` (referenčna kategorija): `r round(m1$coefficients[1], 2)` + `r round(m1$coefficients[3], 2)` $\ast$ `mom_iq`;
+
+- `mom_hs=1`: (`r round(m1$coefficients[1], 2)` + `r round(m1$coefficients[2], 2)`) + `r round(m1$coefficients[3], 2)` $\ast$ `mom_iq` = `r round(m1$coefficients[1] + m1$coefficients[2], 2)` + `r round(m1$coefficients[3], 2)` $\ast$ `mom_iq`.
+
+Za vajo interpretirajmo posamezne parametre modela `m1`:
+
+- \textit{Presečišče}: za otroka, katerega mati ima IQ enak 0 in ni končala srednje šole, bi bila povprečna napoved rezultata na testu enaka `r round(m1$coefficients[1], 2)`. Interpretacija v tem primeru ni smiselna, saj nobena mati nima IQ-ja enakega 0.
+
+- \textit{Koeficinet} `mom_hs`: če primerjamo otroka, katerih matere imata enak IQ, a je mati prvega končala srednjo šolo, mati drugega pa ne, ima prvi otrok v povprečju za `r round(m1$coefficients[2], 2)` točke boljši rezultat na testu.
+
+- \textit{Koeficinet} `mom_iq`: če primerjamo otroka, katerih matere imata enako vrednost `mom_hs`, a se razlikujeta za 1 točko IQ-ja, ima otrok matere z višjim IQ-jem v povprečju za `r round(m1$coefficients[3], 2)` točke boljši rezultat na testu (oz. je povprečna razlika `r round(m1$coefficients[3], 2)*10` točk, če se materi razlikujeta za 10 točk IQ-ja).
+
+in prikažimo povprečne napovedi `kid_score` na podlagi `m1`:
+
+```{r fig.width=5, fig.height=4, out.width="60%", fig.cap="Odvisnost otrokovega rezultata na IQ testu od materinega izmerjenega IQ-ja in materine izobrazbe. Črti predstavljata povprečno napoved na podlagi modela \\texttt{m1} za otroke, katerih matere so (rdeča) in niso (modra) končale srednjo šolo."}
+ggplot(data, aes(mom_iq, kid_score)) +
+  geom_point(aes(color = mom_hs), show.legend = TRUE) +
+  geom_abline(intercept = c(coef(m1)[1], coef(m1)[1] + coef(m1)[2]),
+    slope = coef(m1)[3],
+    color = c("blue", "red")) +
+  scale_color_manual(values = c("blue", "red")) + xlim(c(70,140)) +
+  labs(x = "Materin IQ", y = "Otrokov rezultat na IQ testu")  
+  
+```
+
+V naslednjem koraku bomo sprostili predpostavko, da sta naklona za `mom_iq` enaka ne glede na `mom_hs`:
+
+```{r}
+m2 <- lm(kid_score ~  mom_hs * mom_iq, data=data)
+```
+
+Ali je interakcija v modelu potrebna ali ne, lahko preverimo z $F$-testom. Z ukazom `anova(model)` izvedemo sekvenčni $F$-test, ki testira vpliv posamezne spremenljivke ob upoštevanju predhodnjih spremenljivk v modelu.
+
+```{r}
+anova(m2)
+```
+
+V prvi vrstici izpisa z $F$-testom primerjamo model, kjer smo vključili napovedno spremenljivko `mom_hs` z ničelnim modelom, ki vsebuje le presečišče. V drugi vrstici primerjamo model, ki vključuje `mom_hs` in `mom_iq` z modelom, ki vključuje le `mom_hs`. V zadnji vrstici testiramo domnevo, ali je v modelu značilna interakcija med `mom_hs` in `mom_iq`.
+
+Prisotnost interakcije lahko preverimo tudi na podlagi $F$-testa za primerjavo gnezdenih modelov, ki testira domnevo, da sta modela ekvivalentna. Ničelno domnevo lahko zavrnemo: modela nista ekvivalentna, interakcija je v modelu potrebna. Primerjajte rezultate obeh testov.
+
+```{r}
+anova(m1, m2)
+```
+
+Diagnostika modela:
+
+```{r fig.width=7, fig.height=6, out.width="80%", fig.cap="Ostanki za model \\texttt{m2}."}
+par(mfrow=c(2,2))
+plot(m2)
+```
+
+Slike ostankov so sprejemljive, čeprav je na prvi sličici, ki prikazuje ostanke v odvisnosti od napovedanih vrednosti, vidna rahla nelinearnost vpliva napovedne spremenljivke `mom_iq` na `kid_score`. Sliko poglejmo pobliže:
+
+```{r fig.width=4, fig.height=4, out.width="80%", fig.cap="Ostanki za model \\texttt{m2}."}
+plot(m2, which = 1)
+```
+
+Poglejmo še grafikon parcialnih ostankov:
+
+
+```{r fig.width=8, fig.height=5, out.width="80%", fig.cap="Parcialni ostanki za model \\texttt{m2}."}
+plot(Effect(c("mom_iq","mom_hs"), m2, partial.residuals=TRUE))
+```
+
+Vidimo, da prihaja le do manjših odstopanj gladilnika v repih pri `mom_hs=1`, torej smo z vključeno interakcijo situacijo (vsaj deloma) popravili. V kolikor nas zanima interpretacija ocen parametrov, bi v praksi tak model privzeli kot zadovoljiv; v kolikor bi nas zanimale natančne napovedi, bi model poizkušali izboljšati tako, da bi nelinearnost modelirali s polinomsko regresijo ali zlepki. Na račun večje fleksibilnosti (ter kompleksnosti) modela, s katero bi dobili bolj natančne napovedi, pa bi žrtvovali del njegove interpretabilnosti. 
+
+V tej vaji bomo privzeli, da je kljub manjši kršitvi predpostavke o linearnosti, naš model zadovoljiv. Za interpretacijo si poglejmo izpis povzetka modela:
+
+```{r}
+summary(m2)
+```
+
+Ocenjeni model `m2` lahko zapišemo: `r round(m2$coefficients[1], 2)` + `r round(m2$coefficients[2], 2)` $\ast$ `mom_hs` + `r round(m2$coefficients[3], 2)` $\ast$ `mom_iq` - `r round(abs(m2$coefficients[4]), 2)` $\ast$ `mom_hs` $\ast$ `mom_iq`.
+
+Najlaže si je rezultate razložiti v smislu dveh premic z različnima presečiščema in naklonoma:
+
+- `mom_hs=0` (referenčna kategorija): `r round(m2$coefficients[1], 2)` + `r round(m2$coefficients[3], 2)` $\ast$ `mom_iq`;
+
+- `mom_hs=1`: (`r round(m2$coefficients[1], 2)` + `r round(m2$coefficients[2], 2)`) + (`r round(m2$coefficients[3], 2)` - `r round(abs(m2$coefficients[4]), 2)`) $\ast$ `mom_iq` = `r round(m2$coefficients[1] + m2$coefficients[2], 2)` + `r round(m2$coefficients[3] + m2$coefficients[4], 2)` $\ast$ `mom_iq`.
+
+Razlaga posameznih parametrov:
+
+- \textit{Presečišče}: predstavlja napovedano vrednost rezultata na  IQ-testu za tiste otroke, katerih matere niso končale srednje šole in so imele IQ enak 0 (interpretacija ni smiselna).
+
+- \textit{Koeficient} \texttt{mom\_hs}: predstavlja napovedano razliko rezultata na IQ-testu za dva otroka, katerih matere imata IQ enak 0, a se razlikujeta glede na to, ali sta končali srednjo šolo (interpretacija ni smiselna).
+
+- \textit{Koeficient} \texttt{mom\_iq}: predstavlja napovedano razliko rezultata na IQ-testu za dva otroka, katerih matere nista končala srednje šole, a se njun IQ razlikuje za 1. 
+
+- \textit{Interakcija} predstavlja napovedano razliko naklonov za \texttt{mom\_iq} za matere, ki so oz. niso končale srednje šole. 
+
+Ocenjene napovedi na podlagi modela `m2`:
+
+```{r fig.width=5, fig.height=4, out.width="60%", fig.cap="Odvisnost otrokovega rezultata na IQ testu od materinega izmerjenega IQ-ja in materine izobrazbe. Črti predstavljata povprečno napoved na podlagi modela \\texttt{m2} za otroke, katerih matere so (rdeča) in niso (modra) končale srednjo šolo."}
+ggplot(data, aes(mom_iq, kid_score)) +
+  geom_point(aes(color = factor(mom_hs)), show.legend = FALSE) +
+  geom_abline(
+    intercept = c(coef(m2)[1], sum(coef(m2)[1:2])),
+    slope = c(coef(m2)[3], sum(coef(m2)[3:4])),
+    color = c("blue", "red")) +
+  scale_color_manual(values = c("blue", "red")) +
+  labs(x = "Materin IQ", y = "Otrokov rezultat na IQ testu")
+```
+
+Videli smo, da je oceno za presečišče težko interpretirati, kadar napovedne spremenljivke ne vključujejo vrednosti nič. Interpretacijo lahko olajšamo tako, da spremenljivke centriramo ali pa uporabimo neko referenčno točko; v našem primeru vemo, da je populacijsko povprečje IQ-ja enako 100, tako da bo 100 naša referenčna točka:
+
+```{r}
+#data$mom_iq_centered <- data$mom_iq - mean(data$mom_iq)
+#data$mom_hs_centered <- data$mom_hs - mean(data$mom_hs)
+
+data$mom_iq_centered <- data$mom_iq - 100 # odštejemo populacijsko povprečje
+#data$mom_hs_centered <- data$mom_hs - 0.5 # odštejemo sredinsko točko
+
+m2.2 <- lm(kid_score ~ mom_hs * mom_iq_centered, data=data)
+summary(m2.2)
+```
+
+- \textit{Koeficient} za `mom_hs` zdaj predstavlja napovedano razliko rezultata na IQ-testu za dva otroka, katerih matere imata IQ enak 100, a se razlikujeta glede na to, ali sta končali srednjo šolo.  
+
+- \textit{Koeficient} za `mom_iq_centered` predstavlja napovedano razliko rezultata na IQ-testu za dva otroka, katerih matere nista končala srednje šole, a se njun IQ razlikuje za 1. 
+
+Vrednost $R^2$ za ta model znaša `r round(summary(m2.2)$r.squared, 2)`. Z modeliranjem glavnih vplivov `mom_hs` in `mom_iq` ter njune interakcije smo torej uspeli pojasniti `r round(summary(m2.2)$r.squared*100, 2)` \% variabilnosti odzivne spremenljivke `kid_score`.
+
+Model na centriranih podatkih brez presečišča: 
+
+```{r}
+m2.3 <- lm(kid_score ~ - 1 + mom_hs * mom_iq_centered , data=data)
+summary(m2.3)
+```
+
+Namesto napovedane razlike rezultata na IQ-testu za dva otroka, katerih matere imata IQ enak 100, a se razlikujeta glede na to, ali sta končali srednjo šolo, tu dobimo napovedani vrednosti `kid_score` za otroka, katerega mati ima IQ enak 100 in ni (`mom_hs0`) oz. je (`mom_hs1`) končala srednje šolo.
+
+Primerjajmo modela z in brez presečišča:
+
+```{r}
+anova(m2.2)
+
+anova(m2.3)
+```
+
+Vrednost za $SS_{m2.3}$ je presenetljivo velika. Matematično lahko pokažemo, da v modelu brez presečišča izraz $SS_y$ ne razpade na vsoto $SS_{model} + SS_{residual}$. Tudi povprečje ostankov v takem modelu ni nujno enako 0. 
+
+Primerjajmo vrednost $R^2=SS_{model}/SS_{total}=1-SS_{res}/SS_{total}$ v modelu s presečiščem:
+
+```{r}
+y_fit_m2.2 <- m2.2$fitted.values
+SS.res <- sum((y_fit_m2.2 - data$kid_score)^2)
+SS.total <- sum((data$kid_score - mean(data$kid_score))^2)
+1-SS.res/SS.total
+```
+z vrednost $R^2$ v modelu brez presečišča:
+
+```{r}
+y_fit_m2.3 <- m2.3$fitted.values
+SS.res <- sum((y_fit_m2.3 - data$kid_score)^2)
+SS.total <- sum((data$kid_score - 0)^2) 
+# SS.total se računa relativno na vrednost 0!
+1-SS.res/SS.total
+
+```
+$R^2$ v modelu brez presečišča tako ne moremo interpretirati kot delež pojasnjene variabilnosti. 
+
+Pri interpretaciji modela si lahko pomagamo tudi z grafičnimi prikazi iz paketa `effects`: 
+
+```{r fig.width=5, fig.height=4, out.width="80%", fig.cap="Napovedane vrednosti za \\texttt{kid\\_score} v odvisnosti od materinega IQ-ja glede na materino izobrazbo za model \\texttt{m2}."}
+plot(Effect(c("mom_iq", "mom_hs"), m2), 
+     multiline = TRUE, ci.style = "bands", main = "",
+     xlab = "Materin IQ", ylab="Otrokov rezultat na IQ testu",
+     key.args = list(space="top", 
+                     text = list(c("Brez srednje šole", "Vsaj srednja šola"), cex = .9),
+                     title=""))
+```
+
+Kaj mislite, ali lahko zvezo med `mom_iq` in `kid_score` interpretiramo kot vzročno-posledično?
+
+V običajnem regresijskem kontekstu, kadar je namen modeliranja deskriptiven, se interpretacija nanaša na primerjave med enotami. Pri vzročnem sklepanju pa primerjamo dva potencialna izida (\textit{potential outcomes}) na isti enoti, če bi bila izpostavljena dvem različnim obravnavanjem (vprašanje: \textit{What if?}). Na splošno lahko rezultate regresijske modela interpretiramo v smislu vzorka in poslednice le ob močnih predpostavkah oz. v kontekstu načrtovanih poskusov, saj z načrtovanjem zbiranja podatkov lahko zagotavimo, da je dodelitev obravnavanj posameznim enotam neodvisna od potencialnih izidov (pogojna glede na dejavnike, ki smo jih upoštevali pri načrtovanju poskusa).
+
+V praksi pa načrtovani poskusi niso vedno mogoči zaradi različnih logističnih, etičnih ali finančnih omejitev. Interpretacija vplivov proučevanih dejavnikov v smislu vzroka in posledice je lahko pristranska, če dodelitev obravnavanj posameznim enotam ni slučajen (skupine, ki jih primerjamo, se razlikujejo v mnogih t.i. motečih spremenljivkah, ki tudi vplivajo na izid). Če želimo rezultate kljub temu interpretirati v smislu vzroka in posledice, moramo v regresijskem modelu upoštevati vse moteče dejavnike, ki pojasnjujejo alokacijo enot v posamezna obravnavanja. Glavne težave se pojavijo pri vprašanju, katere moteče spremenljivke je potrebno upoštevati v modelu, poleg tega pa se posledično lahko zgodi, da naš končni model vključuje veliko število spremenljivk.
+
+
+\subsection{Domača naloga: Povzetek ugotovitev simulacij}
+
+Za domačo nalogo zapišite kratek povzetek vaših ugotovitev iz današnjih vaj in
+ponovite oz. dopolnite simulacije.
+V pomoč so vam lahko naslednja vprašanja:
+
+\begin{itemize}
+  \item Kako velikost vzorca vpliva na diagnostiko grafov ostankov?
+  \item Kako na grafu ostankov zaznamo prisotnost heteroskedastičnosti?
+  \item Kako na grafu opazimo, da ostanki niso porazdeljeni normalno?
+  \item Na kaj vpliva heteroskedastičnost?
+  \item S simulacijami pokažite, kaj kaj se zgodi z velikostjo testa v primeru kršitve predpostavke o konstantni varianci.
+\end{itemize}
+
+
+

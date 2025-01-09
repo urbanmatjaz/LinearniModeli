@@ -298,6 +298,7 @@ plot(Effect(c("Age","Ht","Gender","Smoke"), mod2, partial.residuals=TRUE), main=
 mod2.int <- lm(log(FEV) ~ Age*Ht*Gender*Smoke, data=lungcap) 
 anova(mod2, mod2.int)
 
+summary(mod2.int)
 plot(Effect(c("Age","Ht","Gender","Smoke"), mod2.int, partial.residuals=TRUE), main="")
 
 anova(mod2.int1)

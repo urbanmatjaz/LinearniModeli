@@ -1,0 +1,523 @@
+---
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+header-includes:
+  \usepackage{float}
+editor_options: 
+  markdown: 
+    wrap: 72
+  chunk_output_type: console
+---
+
+\renewcommand{\figurename}{Slika}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "",
+                      fig.align = 'center', 
+                      fig.width = 5, 
+                      fig.height = 4,
+                      warning = FALSE)
+```
+
+\section{Vaja 3: Predpostavke niso izpolnjene}
+
+Seznam potrebnih `R` paketov:
+
+```{r message=FALSE}
+library(ggplot2)
+library(ggpubr)
+library(car)
+library(effects)
+library(dplyr)
+library(ISLR2)
+```
+
+\subsection{1. $R^2$ v modelu brez presečišča}
+
+$R^2$ v modelu s presečiščem lahko izpeljemo iz izraza, ki razdeli vsoto kvadratov odklonov odzivne spremenljivke $SS_{yy}$ na dva dela: del $SS_{model}$, ki ga pojasni linearni model, ter del $SS_{residual}$, ki ostane z modelom nepojasnjen:
+
+$$\sum_{i=1}^n (y_i - \overline{y})^2 = \sum_{i = 1}^n (\hat{y_i} - \overline{y})^2  + \sum_{i = 1}^n (y_i - \hat{y_i})^2,$$
+$$SS_{yy}=SS_{model}+SS_{residual},$$
+
+pri čemer smo upoštevali, da je
+$2\sum_{i=1}^n (y_i-\hat{y_i})(\hat{y_i}-\overline{y})=0$. 
+
+$R^2$ je delež variabilnosti odzivne spremenljivke, ki je pojasnjen z modelom:
+
+$$R^2= \frac{\sum_{i = 1}^n (\hat{y_i} - \overline{y})^2} {\sum_{i=1}^n (y_i - \overline{y})^2} = \frac{SS_{model}} {SS_{yy}}.$$
+$R^2$ torej primerja dani model z modelom, ki vsebuje le presečišče. 
+
+Kadar model nima presečišča, ga ni smiselno primerjati z modelom, ki vključuje le presečišče. V takem primeru gre regresijska premica namesto skozi $\overline{y}$  skozi izhodišče, in $R^2$ je enak:
+
+$$R^2_0=\frac{\sum_{i = 1}^n \hat{y_i}^2} {\sum_{i=1}^n y_i^2}.$$
+Vrednosti $R^2$ dveh modelov - s presečiščem in brez presečišča - ni mogoče neposredno primerjati, saj temeljijo na različnih izračunih. Vrednost R-kvadrata bo na splošno višja v modelu brez presečišča, vendar to nujno ne pomeni, da je ta model boljši. Načeloma model brez presečišča uporabimo le v primerih, ko iz teorije vemo, da je presečišče enako nič.
+
+\subsection{2. Posebne točke v modelu}
+
+Vrnimo se na primer iz prejšnje vaje, kjer smo na podlagi podatkovnega okvira `bodyfat` pojasnjevali odstotek telesne maščobe na podlagi 3 spremenljivk: telesne teže, višine in obsega trebuha. Še enkrat poglejmo, kako izgledajo parne povezanosti z odzivno spremenljivko. Funkcija `scatterplot` v paketu `car` omogoča identifikacijo dveh enot z največjo Mahalanobisovo razdaljo od središča podatkov.
+
+```{r, echo=FALSE}
+bodyfat <- read.table(url("https://jse.amstat.org/datasets/fat.dat.txt"))
+
+bodyfat <- bodyfat[, -c(8:9)]
+
+colnames(bodyfat) <- c("case", "brozek", "siri", "density", "age", "weight", 
+                       "height", "neck","chest", "abdomen", "hip", "thigh", 
+                       "knee", "ankle",  "biceps", "forearm", "wrist")
+
+## iz lb v kg
+bodyfat$weight <- bodyfat$weight * 0.454
+## iz in v cm
+bodyfat$height <- bodyfat$height * 2.54
+
+bodyfat$height[bodyfat$case==42] <- 176.53  #glej https://jse.amstat.org/datasets/fat.txt
+
+bodyfat <- bodyfat %>%
+  select(siri, weight, height, abdomen)
+
+#summary(bodyfat)
+```
+
+```{r fig.show='hold', out.width='3in', fig.height=6, fig.width=6}
+scatterplot(siri ~ weight, data=bodyfat,
+  smooth=list(smoother=loessLine, border=FALSE, style="none"), 
+  regLine=TRUE, id=TRUE, boxplots=FALSE, 
+  cex.axis=1.5, cex.lab=1.5)
+
+scatterplot(siri ~ height, data=bodyfat,  
+  smooth=list(smoother=loessLine, border=FALSE, style="none"), 
+  regLine=TRUE, id=TRUE, boxplots=FALSE,
+  cex.axis=1.5, cex.lab=1.5)
+
+scatterplot(siri ~ abdomen, data=bodyfat,  
+  smooth=list(smoother=loessLine, border=FALSE, style="none"), 
+  regLine=TRUE, id=TRUE, boxplots=FALSE,
+  cex.axis=1.5, cex.lab=1.5)
+```
+
+Izstopata predvsem enoti 39 in 216. V prejšnji vaji smo osebo 39 a priori izključili iz modela. Tokrat bomo naredili model na vseh `r nrow(bodyfat)` enotah.
+
+```{r}
+m.bodyfat <- lm(siri~weight + height + abdomen, bodyfat)
+```
+
+Poglejmo, kako izgledajo osnovni diagnostični grafi ostankov za model `m.bodyfat`:
+
+```{r fig.width=7, fig.height=6, out.width="80%", fig.cap="Ostanki za model \\texttt{m.bodyfat}."}
+par(mfrow=c(2,2))
+plot(m.bodyfat)
+```
+
+Izstopa 39. enota, ki ima veliko vrednost standardiziranih ostankov ter veliko vrednost Cookove razdalje. Torej bomo nadaljevali z analizo posebnih točk. 
+
+```{r, fig.width=5, fig.height=4, out.width="70%", fig.cap="QQ-grafikon za studentizirane ostanke za \\texttt{m2} s 95 \\% bootstrap ovojnico."}
+qqPlot(m.bodyfat)
+```
+
+Slika porazdelitve ostankov kaže, da imamo v modelu nekaj točk, ki imajo studentizirano ostanke po absolutni vrednosti večje od 2. Po privzetih nastavitvah funkcija identificira dve enoti z največjima vrednostima studentiziranih ostankov. Nobena točka ni daleč zunaj 95 % bootstrap ovojnice, kar kaže na to, da v modelu nimamo regresijskih osamelcev.
+
+Naredimo še statistični test, ki temelji na studentiziranih ostankih in testira ničelno domnevo, ki pravi, da $i$-ta točka, $i=1,\ldots,n$, ni regresijski osamelec:
+
+```{r}
+outlierTest(m.bodyfat)
+```
+
+Enota 39 je potencialni regresijski osamelec, vendar pa je njena popravljena Bonferroni $p$-vrednost večja od 0.05. Poglejmo si, kako se dejanska vrednost `siri` pri tej enoti razlikuje od na podlagi modela napovedane vrednosti.
+
+```{r}
+bodyfat[39, ]
+
+fitted(m.bodyfat)[39]
+```
+Vidimo, da za dano enoto močno precenimo odstotek telesne maščobe. Glede na maso ter obseg abdomna bi na podlagi modela za to enoto pričakovali višji odstotek telesne maščobe.
+
+Poglejmo, ali so v modelu tudi točke, ki imajo velik vzvod:
+
+```{r fig.width=5, fig.height=5, out.width="80%", fig.cap="Grafični prikaz studentiziranih ostankov, vzvodov in Cookove razdalje (ploščina kroga je sorazmerna Cookovi razdalji) za model \\texttt{m.bodyfat}."}
+influencePlot(m.bodyfat, 
+              id = list(method = "noteworthy", n = 2, cex = 1, location = "lr"),
+              xlab = "Vzvodi", ylab = "Studentizirani ostanki")
+```
+
+V modelu je nekaj točk, katerih vzvod presega trikratnik povprečnega vzvoda. Vzvodne točke same po sebi še niso problem, če pa so hkrati tudi regresĳski osamelci, so pogosto tudi vplivne točke. Problematična je točka 39, ki je tako vzodna točka kot tudi točka z veliko vrednostjo studentiziranega ostanka. Čeprav test za regresijske osamelce ni dal značilnega rezultata (kar je lahko tudi posledica konzervativnosti Bonferronijevega popravka), iz izpisa vidimo, da je Cookova razdalja pri tej enoti večja od 0.5. Torej bi točka lahko bila vplivna.
+
+Primerjajmo ocene parametrov modelov z in brez enote 39.
+
+```{r}
+m.bodyfat_brez39 <- lm(siri~weight + height + abdomen, bodyfat[-39, ])
+
+summary(m.bodyfat_brez39)
+```
+
+
+```{r}
+compareCoefs(m.bodyfat, m.bodyfat_brez39)
+```
+
+Primerjajmo grafično pričakovani odstotek telesne maščobe v odvisnosti od `weight` oz. `abdomen` ob upoštevanju ostalih spremenljivk na podlagi obeh modelov:
+
+```{r fig.width=6, fig.height=4, out.width="95%", fig.cap="Napovedi za odstotek telesne maščobe v odvisnosti od \\texttt{weight} oz. \\texttt{abdomen} ter ob upoštevanju ostalih spremenljivk na podlagi modelov \\texttt{m.bodyfat} ter \\texttt{m.bodyfat\\_brez39}."}
+
+# Napovedi glede na weight
+effect_weight_m1 <- as.data.frame(Effect("weight", m.bodyfat))
+effect_weight_m2 <- as.data.frame(Effect("weight", m.bodyfat_brez39))
+
+effect_weight_m1$Model <- "m.bodyfat"
+effect_weight_m2$Model <- "m.bodyfat_brez39"
+
+effect_weight <- rbind(effect_weight_m1, effect_weight_m2)
+
+p1 <- ggplot(effect_weight, aes(x = weight, y = fit, color = Model, fill = Model)) +
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
+  labs(
+    x = "Masa (kg)",
+    y = "Pričakovani odstotek telesne maščobe"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("m.bodyfat" = "red", "m.bodyfat_brez39" = "blue")) +
+  scale_fill_manual(values = c("m.bodyfat" = "red", "m.bodyfat_brez39" = "blue"))
+
+# Napovedi glede na abdomen
+effect_abdomen_m1 <- as.data.frame(Effect("abdomen", m.bodyfat))
+effect_abdomen_m2 <- as.data.frame(Effect("abdomen", m.bodyfat_brez39))
+
+effect_abdomen_m1$Model <- "m.bodyfat"
+effect_abdomen_m2$Model <- "m.bodyfat_brez39"
+
+effect_abdomen <- rbind(effect_abdomen_m1, effect_abdomen_m2)
+
+p2 <- ggplot(effect_abdomen, aes(x = abdomen, y = fit, color = Model, fill = Model)) +
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
+  labs(
+    x = "Abdomen (cm)",
+    y = "Pričakovani odstotek telesne maščobe"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("m.bodyfat" = "red", "m.bodyfat_brez39" = "blue")) +
+  scale_fill_manual(values = c("m.bodyfat" = "red", "m.bodyfat_brez39" = "blue"))
+
+ggarrange(p1, p2, ncol = 2, common.legend = TRUE, legend="top")
+```
+
+Vidimo, da je v modelu brez enote 39 povezanost med maso in odzivno spremeljivko `siri` ob upoštevanju ostalih spremenljivk šibkejša. 
+
+Brez dobrega poznavanja stroke pa ne moremo reči, kateri model je primerjnejši oz. ustreznejši; zato vplivnih točk ne izločamo kar tako iz modela. Pomembno je, da jih identificiramo!
+
+\subsection{3. Logaritmska transformacija}
+
+Kadar aditivnost in linearnost postaneta vprašljivi, včasih situacijo lahko popravimo z nelinearno transformacijo. Če so vrednosti odzivne spremenljivke izključno pozitivne, je vsebinsko smiselno uporabiti logaritemsko transformacijo odzivne spremenljivke. Tak linearni model postane multiplikativen na originalni skali $y_i$:
+$$\log y_i=b_0+b_1x_{i1}+b_2x_{i2}+\ldots+\epsilon_i.$$
+Z inverzno transformacijo dobimo
+$$y_i=e^{b_0+b_1x_{i1}+b_2x_{i2}+\ldots+\epsilon_i}=B_0 B_1^{x_{i1}} B_2^{x_{i2}} \ldots E_i,$$
+kjer so $B_0=e^{b_0}$, $B_1=e^{b_1}$, $B_2=e^{b_2}, \ldots$ eksponencirani regresijski parametri, $E_0=e^{\epsilon_i}$ pa je eksponencirana napaka. Ker je $\exp(a)>0$, so napovedi, ki jih da tak model vedno pozitivne. 
+
+```{r eval=FALSE}
+?Wage
+head(Wage)
+```
+
+Podatkovni okvir `Wage` iz paketa `ISLR2` vsebuje podatke o bruto letnih zaslužkih (1000 $) za `r nrow(Wage)` moških iz srednje-atlantske regije. Osredotočili se bomo na opisovanje povezanosti med plačo in starostjo ter izobrazbo. Tovrstnega modela ne bi mogli uporabiti za razlaganje vzročno-posledičnih zvez med odzivno in napovednima spremenljivkama, saj se npr. mlajši in starejši moški v vzorcu razlikujejo še v marsikateri drugi lastnosti kot pa le po izobrazbi. Model nam lahko služi za raziskovanje \textit{povezanosti} med zaslužkom ter starostjo in izobrazbo, gre torej za deskriptivni model. Lahko pa bi ga uporabili tudi za napovedovanje bruto letnih zaslužkov za nove enote, čeprav bi za bolj natančne napovedi imelo smisel v modelu modelirati nelinearnost. 
+
+Katero metodo ter tudi strategijo modeliranja uporabimo, je odvisno od tega, ali je naš končni cilj napovedovanje, vzročno-posledično sklepanje (inferenca) ali kombinacija obeh. Linearni model omogoča razmeroma preprosto in razumljivo interpretacijo parametrov, vendar pa bo morda dal manj natančne napovedi kot nekateri drugi nelinearni pristopi. Nasprotno pa ti pristopi lahko dajo natančnejše napovedi odzivne spremenljivke, vendar na račun fleksibilnosti dobimo manj razumljiv model, na podlagi katerega je sklepanje lahko zelo zahtevno.
+
+```{r}
+Wage <- Wage %>%
+  dplyr::select(age, education, wage) #izberemo spremenljivke, ki nas zanimajo
+
+str(Wage)
+```
+
+Poglejmo najprej univariatne porazdelitve spremenljivk v podatkovnem okviru, čeprav regresijski model ne predpostavlja ničesar o porazdelitvi napovednih spremenljivk. Te so lahko porazdeljene po porazdelitvah, ki so daleč od normalnosti. Model prav tako ne predpostavlja, da mora biti odzivna spremenljivka normalna, temveč se ta predpostavka nanaša na porazdelitev napak.
+
+```{r}
+summary(Wage)
+```
+
+
+```{r fig.width=8, fig.height=4, out.width="90%", fig.cap="Univariatne porazdelitve številskih spremenljivk v podatkovnem okviru \\texttt{Wage}."}
+par(mfrow=c(1,2))
+hist(Wage$wage, main="", 
+     xlab="Plača ($)", ylab="Frekvenca", 
+     breaks=20)
+
+hist(Wage$age, main="", 
+     xlab="Starost (leta)", ylab="Frekvenca")
+```
+
+Porazdelitev odzivne spremenjivke `wage` je rahlo asimetrična v desno, vrednosti `wage` pa so izključno pozitivne.
+
+Prikažimo še porazdelitev `wage` in `age` glede na `education`:
+
+```{r fig.width=8, fig.height=6, out.width="90%", fig.cap="Porazdelitev \\texttt{wage} in \\texttt{age} glede na \\texttt{education} v podatkovnem okviru \\texttt{Wage}."}
+
+par(mfrow=c(2, 1))
+par(cex=0.8)
+
+boxplot(Wage$wage ~ Wage$education, 
+        xlab = "Izobrazba", ylab = "Plača (1000 $)")
+
+boxplot(Wage$age ~ Wage$education, 
+        xlab = "Izobrazba", ylab = "Starost")
+
+```
+
+Poglejmo grafično, kako izgleda odvisnost `wage` od `age` po `education`:
+
+```{r message=FALSE, fig.width=8, fig.height=6, out.width="90%", fig.cap="Odvisnost \\texttt{wage} oz. \\texttt{log(wage)} od \\texttt{age} in \\texttt{education} v podatkovnem okviru \\textit{Wage}."}
+
+#Ali obstaja linearna povezanost med spremenljivkama age in wage (glede na izobrazbo)?
+p1 <- ggplot(data=Wage, aes(x=age, y=wage, col=education)) +
+  geom_point() + 
+  geom_smooth(se=FALSE) +
+  #geom_smooth(method="lm", se=FALSE) +
+  xlab("Starost (leta)") +
+  ylab("Plača (1000 $)") 
+
+p2 <- ggplot(data=Wage, aes(x=age, y=log(wage), col=education)) +
+  geom_point() + 
+  geom_smooth(se=FALSE) +
+  #geom_smooth(method="lm", se=FALSE) +
+  xlab("Starost (leta)") +
+  ylab("log(Plača (1000 $))") 
+
+ggarrange(p1, p2, ncol = 2, common.legend = TRUE, legend="top")
+
+```
+
+Graf nakazuje, da je vpliv `age` nelinearen in drugačen glede na `education`.
+
+Naredimo prvi model, v katerem predpostavimo linearnost zveze med `wage` in `age` ter aditivnost vplivov `age` in `education`:
+
+```{r}
+m0 <- lm(wage ~ age + education, data=Wage)
+```
+
+Osnovni diagnostični grafi ostankov za model `m0`:
+
+```{r fig.width=7, fig.height=6, out.width="80%", fig.cap="Ostanki za model \\texttt{m0}."}
+par(mfrow=c(2,2))
+plot(m0)
+```
+
+Levi sličici v prvi in drugi vrstici kažeta nekonstantno varianco. Varianca ostankov narašča z napovedanimi vrednostmi (zgornja leva sličica), slika ostankov je podobna klinu: variabilnost ostankov
+narašča od leve proti desni. Prisotnost nekonstantne variance še bolje pokaže gladilnik na levi
+spodnji sliki, kjer so na vodoravni osi napovedane vrednosti, na navpični osi pa koreni absolutnih
+vrednosti standardiziranih ostankov. Kot smo lahko pričakovali glede na podatke, vidimo tudi, da precej enot izstopa tudi zaradi velikih vrednosti standardiziranih ostankov.
+
+Poglejmo, kako situacija izgleda, če odzivno spremenljivko `wage` logaritmiramo.
+
+```{r}
+m1 <- lm(log(wage) ~ age + education, data=Wage)
+```
+
+Osnovni diagnostični grafi ostankov za model `m1`:
+
+```{r fig.width=7, fig.height=6, out.width="80%", fig.cap="Ostanki za model \\texttt{m1}."}
+par(mfrow=c(2,2))
+plot(m1)
+```
+
+Tretji grafikon nakazuje, da smo z z logaritemsko transformacijo odzivne spremenljivke heteroskedastičnost odpravili.  Kot je pričakovano, pa je v podatkih še vedno precej enot z veliko vrednostjo standardiziranega ostanka. Porazdelitev le-teh tudi odstopa od standardizirane normalne porazdelitve.  
+
+Za boljšo diagnostiko modela si poglejmo grafikon parcialnih ostankov:
+
+```{r fig.width=7, fig.height=5, out.width="95%", fig.cap="Graf parcialnih ostankov za model \\texttt{m1}."}
+crPlots(m1, cex.lab=0.8, cex.axis=0.8)
+```
+
+Iz prve sličice vidimo, da se gladilnik ne prilega dobro premici: zveza med `log(wage)` in `age` je ob upoštevanju `education` nelinearna.
+
+Poglejmo si še grafikon parcialnih ostankov za model `m1` v odvisnosti od `age` pri različnih vrednostih spremenljivke `education`.
+
+```{r fig.width=6, fig.height=5, out.width="95%", fig.cap="Graf parcialnih ostankov za model \\texttt{m1}."}
+
+plot(Effect(c("age", "education"), m1, partial.residuals = TRUE),
+     ci.style = "none", 
+     lattice = list(layout = c(5, 1)),
+     axes = list(x=list(cex=0.6)))
+
+```
+
+Predvsem je očitna nelinearnost zveze med `log(wage)` in `age`. Pri modeliranju nelinearnosti bi si lahko pomagali s polinomsko regresijo ali zlepki, vendar več o tem kasneje. 
+
+Kljub temu, da se naš model podatkom ne prilega najbolje, bomo za vajo vseeno razmislili o interpretaciji modela, ki ima eno številsko in eno opisno spremenljivko z večimi kategorijami, odzivna spremenljivka pa je logaritmirana.
+
+```{r}
+summary(m1)
+confint(m1)
+```
+
+Ob upoštevanju `education` `log(wage)` narašča z `age` ($p<0,001$), in sicer z vsakim letom starosti se v povprečju `log(wage)` poveča za `r round(summary(m1)$coef["age", 1], 3)` enote oz. se `wage` poveča za `r round((exp(summary(m1)$coef["age", 1])-1)*100, 1)` \% ($\exp(\beta_{age})=$ `r exp(summary(m1)$coef["age", 1])`), pripadajoči 95 \% IZ je (`r paste(round((exp(confint(m1)["age", ])-1)*100, 1), collapse = ", ")`).
+
+V primerjavi z osebo s `< HS Grad` in enako vrednostjo spremenljivke `age` ima v povprečju oseba s stopnjo izobrazbe: 
+
+- `2. HS Grad` `log(wage)` višjo za `r round(summary(m1)$coef["education2. HS Grad", 1], 2)` enote oz. `wage` višjo za `r round((exp(summary(m1)$coef["education2. HS Grad", 1])-1)*100, 1)` \% ($\exp(\beta_{HSGrad})=$ `r exp(summary(m1)$coef["education2. HS Grad", 1])`), pripadajoči 95 \% IZ je (`r paste(round((exp(confint(m1)["education2. HS Grad", ])-1)*100, 1), collapse = ", ")`); 
+
+- `3. Some College` `log(wage)` višjo za `r round(summary(m1)$coef["education3. Some College", 1], 2)` enote oz. `wage` višjo za `r round((exp(summary(m1)$coef["education3. Some College", 1])-1)*100, 1)` \% ($\exp(\beta_{SomeCollege})=$ `r exp(summary(m1)$coef["education3. Some College", 1])`), pripadajoči 95 \% IZ je (`r paste(round((exp(confint(m1)["education3. Some College", ])-1)*100, 1), collapse = ", ")`);
+
+- `4. College Grad` `log(wage)` višjo za `r round(summary(m1)$coef["education4. College Grad", 1], 2)` enote oz. `wage` višjo za `r round((exp(summary(m1)$coef["education4. College Grad", 1])-1)*100, 1)` \% ($\exp(\beta_{CollegeGrad})=$ `r exp(summary(m1)$coef["education4. College Grad", 1])`), pripadajoči 95 \% IZ je (`r paste(round((exp(confint(m1)["education4. College Grad", ])-1)*100, 1), collapse = ", ")`),
+
+- `5. Advanced Degree` `log(wage)` višjo za `r round(summary(m1)$coef["education5. Advanced Degree", 1], 2)` enote oz. `wage` višjo za `r round((exp(summary(m1)$coef["education5. Advanced Degree", 1])-1)*100, 1)` \% ($\exp(\beta_{AdvancedDegree})=`r exp(summary(m1)$coef["education5. Advanced Degree", 1])`$), pripadajoči 95 \% IZ je (`r paste(round((exp(confint(m1)["education5. Advanced Degree", ])-1)*100, 1), collapse = ", ")`).
+
+Z modelom `m1` smo uspeli pojasniti `r round(summary(m1)$r.squared*100, 2)` \% variabilnosti `log(wage)`.
+
+V modelu, v katerem je odzivna spremenljivka logaritmirana, so ocene regresijskih parametrov običajno majhne. Kot prikazuje spodnja slika, za majhne vrednosti približek $\exp(x) = 1 + x$ dobro aproksimira relativno razliko.
+
+
+```{r echo=FALSE, fig.width=6, fig.height=4, out.width="80%", fig.cap="Interpretacija eksponenciranih regresijskih parametrov v regresijskem modelu z logaritmirano odzivno spremenljivko kot relativne razlike (ukrivljena zgornja črta) in približek \\textit{exp(x) = 1 + x}, ki velja za majhne koeficiente \\textit{x}."}
+
+coefs <- seq(-1, 1, by=0.01)
+coefs_exp <- exp(coefs)-1
+plot(coefs, coefs_exp, type="l", xlab=("b"), ylab=c("exp(b) - 1"))
+lines(coefs, coefs)
+```
+
+
+Pri interpretaciji si lahko pomagamo z grafičnimi prikazi iz paketa `effects`:
+
+```{r fig.width=6, fig.height=5, out.width="90%", fig.cap="Povprečne napovedi za \\texttt{log(wage)} na podlagi modela \\texttt{m1}, ki jih vrne funkcija \\texttt{predictorEffects} za spremenljivki \\texttt{age} in \\texttt{education}."}
+
+plot(predictorEffects(m1, ~age + education),
+     axes = list(x=list(cex=0.6, rotate=90)))
+```
+
+oziroma:
+
+```{r fig.width=6, fig.height=5, out.width="95%", fig.cap="Povprečne napovedi za \\texttt{log(wage)} na podlagi modela \\texttt{m1}, ki jih vrne funkcija \\texttt{Effect} za spremenljivki \\texttt{age} in \\texttt{education}."}
+
+plot(Effect(c("age", "education"), m1), multiline=TRUE, ci.style = "bands")
+```
+
+oz. na originalni skali spremenljivke `wage`:
+
+```{r fig.width=6, fig.height=5, out.width="95%", fig.cap="Povprečne napovedi za \\texttt{wage} na podlagi modela \\texttt{m1}, ki jih vrne funkcija \\texttt{Effect} za spremenljivki \\texttt{age} in \\texttt{education}."}
+
+plot(Effect(c("age", "education"), m1, transformation = list(link = log, inverse = exp)),
+     multiline=TRUE, 
+     ci.style = "bands",
+     axes=list(y=list(lab="wage")))
+
+```
+
+ali:
+
+```{r fig.width=6, fig.height=5, out.width="95%", fig.cap="Povprečne napovedi za \\texttt{wage} na podlagi modela \\texttt{m1}, ki jih vrne funkcija \\texttt{Effect} za spremenljivki \\texttt{age} in \\texttt{education}."}
+
+plot(Effect(c("age", "education"), m1),
+     multiline=TRUE, 
+     ci.style = "bands",
+     axes=list(y=list(transform=exp, lab="wage")))
+
+```
+
+Poglejmo še, kako bi interpretirali model, ki vključuje tudi interakcijo med  `age` in `education`. 
+
+```{r}
+m2 <- lm(log(wage) ~ age*education, data=Wage)
+
+anova(m1, m2) 
+
+```
+
+$F$-test kaže na to, da interakcija med `age` in `education` izboljša prileganje modela. Poglejmo še osnovne diagnostične grafe ostankov za model `m2`:  
+
+```{r fig.width=7, fig.height=6, out.width="80%", fig.cap="Ostanki za model \\texttt{m2}."}
+par(mfrow=c(2,2))
+plot(m2)
+```
+
+Interpretacija modela `m2`: 
+
+```{r}
+summary(m2)
+```
+
+Ob upoštevanju ostalih spremenljivk v modelu je zveza med `log(wage)` in `age` drugačna glede na `education`.
+
+- \textit{Presečišče}: da napoved `log(wage)` za enoto, ki je stara 0 let in ima izobrazbo `1. < HS Grad`. Interpretacija v tem primeru ni smiselna, saj nobena enota ni stara 0 let.
+
+- \textit{Koeficient} `age`:  nam pove, da `log(wage)` za `1. < HS Grad` narašča z `age` ($p=$ `r round(summary(m2)$coef["age", 4], 3)`), in sicer se z vsakim letom starosti v povprečju `log(wage)` poveča za `r round(summary(m2)$coef["age", 1], 3)` enote oz. se `wage` poveča za `r round((exp(summary(m2)$coef["age", 1])-1)*100, 1)` \% ($\exp(\beta_{age})=$ `r exp(summary(m2)$coef["age", 1])`), pripadajoči 95 \% IZ je (`r paste(round((exp(confint(m2)["age", ])-1)*100, 1), collapse = ", ")`).
+
+- \textit{Koeficienti} za `education`: dajo povprečno razliko `log(wage)` med `1. < HS Grad` ter ostalimi stopnjami izobrazbe, če je starost enaka 0. Interpretacija v tem primeru ni smiselna, saj nobena oseba ni stara 0 let.
+
+- \textit{Interakcijski členi}: predstavljajo razlike v naklonih premic, ki napovedujejo `log(wage)` v odvisnosti od `age`, če primerjamo ostale stopnje izobrazbe z `1. < HS Grad`. Npr., razlika v starosti enega leta ustreza $e^{\beta_{age:2.HSGrad}}=$ `r round((exp(summary(m2)$coef["age:education2. HS Grad", 1])-1)*100, 2)` \% večjo razliko v zaslužku pri osebi z izobrazbo `2. HS Grad` v primerjavi z osebo `1. < HS Grad`, ocenjena napovedana razlika na leto starosti pri osebah z izobrazbo `2. HS Grad` pa je $e^{\beta_{age}+\beta_{age:2.HSGrad}}=$ `r round((exp(summary(m2)$coef["age:education2. HS Grad", 1] + summary(m2)$coef["age", 1])-1)*100, 2)` \%.
+
+Model `m2` pojasni `r round(summary(m2)$r.squared*100)` \% variabilnosti spremenljivke `log(wage)`.
+
+Zveze med `log(wage)` in `age` se v modelu `m2` ne da opisati brez upoštevanja spemenljivke `education` zaradi prisotne interakcije. Če želimo npr. opisati, kako se `log(wage)` spreminja od `age` glede na `education`, si lahko pomagamo z grafičnimi prikazi, ki jih dobimo s funkcijo `predictorEffects` ali `Effect`. 
+
+```{r fig.width=6, fig.height=5, out.width="95%", fig.cap="Povprečne napovedi za \\texttt{log(wage)} na podlagi modela \\texttt{m1}, ki jih vrne funkcija \\texttt{Effect} za spremenljivki \\texttt{age} in \\texttt{education}."}
+
+plot(Effect(c("age", "education"), m2), multiline=TRUE, ci.style = "bands")
+```
+
+oz. na originalni skali spremenljivke `wage`:
+
+```{r fig.width=6, fig.height=5, out.width="95%", fig.cap="Povprečne napovedi za \\texttt{wage} na podlagi modela \\texttt{m1}, ki jih vrne funkcija \\texttt{Effect} za spremenljivki \\texttt{age} in \\texttt{education}."}
+
+plot(Effect(c("age", "education"), m2, transformation = list(link = log, inverse = exp)),
+     multiline=TRUE, 
+     ci.style = "bands",
+     axes=list(y=list(lab="wage")))
+
+```
+
+\newpage
+
+\subsection{Domača naloga:}
+
+1. Interakcĳa dveh številskih napovednih spremenljivk:
+
+Pripravite funkcijo za generiranje podatkov linearnega 
+regresijskega modela:
+
+$$y = \beta_0 + \beta_1 \cdot x_1 + \beta_2 \cdot x_2 + \beta_3 \cdot x_1 \cdot x_2 + \epsilon,$$
+pri čemer naj bodo vrednosti napovednih spremenljivk porazdeljene:
+\begin{itemize}
+  \item $x_{1,i} \sim U(50, 100)$ in
+  \item $x_{2,i} \sim U(50, 100).$
+\end{itemize}
+
+Generirajte podatke za naslednje parametre:
+
+\begin{itemize}
+  \item $\beta_0 = 10$, 
+  \item $\beta_1 = 0.5$,
+  \item $\beta_2 = 0.15$,
+  \item $\beta_3 \in \{0, 0.05, 0.5\}$,
+  \item $\sigma = 10$,
+  \item $n = 100.$
+\end{itemize}
+
+Navodilo:
+
+\begin{itemize}
+  \item Naredite linearni regresijski model, ki ne upošteva interakcije, in preverite, če model izpolnjuje predpostavke (pomagajte si z grafi ostankov, grafi dodane spremenljivke in grafi parcialnih ostankov). Zapišite ugotovitve.
+  \item V linearni regresijski model vključite interakcije med napovednima spremenljivkama in preverite, če model izpolnjuje predpostavke (pomagajte si z grafi ostankov, grafi dodane spremenljivke in grafi parcialnih ostankov). Zapišite ugotovitve.
+\end{itemize}
+
+2. Log-log model:
+
+V datoteki SNOWGEESE.txt so podatki o $45$ jatah, za kateri so po dveh
+različnih metodah (`obs1`, `obs2`) ocenili število gosk v vsaki jati posebej. 
+Za vse jate so zaradi posnete fotografije lahko prešteli dejansko število gosk (`photo`).
+
+Opazujemo dejansko število gosk v jati (`photo`) v odvisnosti od števila gosk v jati, preštetih po drugi metodi 
+(`obs2`). 
+
+\begin{itemize}
+\item Grafično prikažite odvisnost \texttt{photo} od \texttt{obs2}.
+\item Ali se vam zdi linearni regresijski model primeren? Naredite linearni
+regresijski model \texttt{model.goske} za prvotne podatke.
+\item Naredite diagnostiko ostankov modela. Ali so vse predpostavke linearnega modela izpolnjene? Obrazložite svojo trditev.
+\item Naredite model \texttt{model.goske.log}, v katerem logaritmirate odvisno 
+spremenljivko (\texttt{photo}) in neodvisno spremenljivko (\texttt{obs2}). Naredite diagnostiko ostankov modela. Ali so vse predpostavke linearnega modela izpolnjene? Obrazložite svojo trditev.
+\item Naredite analizo posebnih točk za \texttt{model.goske.log}.
+\item Interpretirajte ocenjene parametre modela \texttt{model.goske.log}, skupaj s pripadajočimi $95\%$ intervali zaupanja in koeficient determinacije. 
+\end{itemize}
+

@@ -70,29 +70,55 @@ summary(mod2.int)
 
 ## Ženske nekadilke
 
+*Gender* = 0
+
+*Smoke* = 0
+
 \[
 \log(\text{FEV}) = -2.55 + 0.12 \cdot \text{Age} + 0.02 \cdot \text{Ht} - 0.0006 \cdot (\text{Age} \cdot \text{Ht})
 \]
 
 ## Ženske kadilke
 
+*Gender* = 0
+
+*Smoke* = 1
+
 \[
-\log(\text{FEV}) = (-2.55 + 12.05) + (0.12 - 0.84) \cdot \text{Age} + (0.02 - 0.07) \cdot \text{Ht} + (0.005 - 0.0006) \cdot (\text{Age} \cdot \text{Ht})
+\log(\text{FEV}) = (-2.55 + 12.05) + (0.12 - 0.84) \cdot \text{Age} + (0.02 - 0.07) \cdot \text{Ht} 
+\]
+\[+ (0.005 - 0.0006) \cdot (\text{Age} \cdot \text{Ht})
 \]
 
 ## Moški nekadilci
 
+*Gender* = 1
+
+*Smoke* = 0
+
 \[
-\log(\text{FEV}) = (-2.55 + 0.98) + (0.12 - 0.14) \cdot \text{Age} + (0.02 - 0.006) \cdot \text{Ht} + (0.0008 - 0.0006) \cdot (\text{Age} \cdot \text{Ht})
+\log(\text{FEV}) = (-2.55 + 0.98) + (0.12 - 0.14) \cdot \text{Age} + (0.02 - 0.006) \cdot \text{Ht} 
+\]
+\[+ (0.0008 - 0.0006) \cdot (\text{Age} \cdot \text{Ht})
 \]
 
 ## Moški kadilci
 
+*Gender* = 1
+
+*Smoke* = 1
+
 \[
-\log(\text{FEV}) = (-2.55 + 0.98 + 12.05 - 13.88) + (-0.14 - 0.84 + 0.87) \cdot \text{Age} + (-0.006 - 0.07 + 0.08) \cdot \text{Ht} + (0.0008 + 0.005 - 0.005 - 0.0006) \cdot (\text{Age} \cdot \text{Ht})
+\log(\text{FEV}) = (-2.55 + 0.98 + 12.05 - 13.88) + (-0.14 - 0.84 + 0.87) \cdot \text{Age} 
+\]
+\[+ (-0.006 - 0.07 + 0.08) \cdot \text{Ht} + (0.0008 + 0.005 - 0.005 - 0.0006) \cdot (\text{Age} \cdot \text{Ht})
 \]
 
 
 ```{r, echo=FALSE, warning = FALSE, message = FALSE}
+par(mfrow=c(1,1))
 plot(Effect(c("Age","Ht","Gender","Smoke"), mod2.int, partial.residuals=TRUE), main="")
 ```
+
+Iz zgornjega grafa lahko razberemo, da so nekatere skupine povsem nezastopane (Najnižji starostni skupini, med kadilci tako pri moških kot tudi pri ženskah) Vidimo tudi da ima tako pri moških nekadilcih kot tudi ženskah nekadilkah premica vočji naklon kot pri moških kadilcih oz. ženskih kadilkah. Prav tako lahko opazimo, da se log(FEV) pri moških nekadilcih z leti bolj povečuje kot pri ženskah nekadilkah. 
+

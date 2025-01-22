@@ -324,13 +324,13 @@ plot(Effect(c("Age", "Ht", "Gender", "Smoke"), model_exp), partial.residuals = T
 
 # Druga možnost grafa parcialnih ostankov
 plot(predictorEffects(m1, ~., partial.residuals = TRUE),
-ci.style = "none", ylim = c(_, _), main = "") # Napovedane vrednosti za povprečno odzivno_spr za m1 in parcialni ostanki z gladilnikom; levo: glede na napovedno_spr1 pri povprečni napovedni_spr2, desno: glede na napovedno_spr2 pri povprečni napovedni_spr1.
+ci.style = "none", ylim = c(0, 8), main = "") # Napovedane vrednosti za povprečno odzivno_spr za m1 in parcialni ostanki z gladilnikom; levo: glede na napovedno_spr1 pri povprečni napovedni_spr2, desno: glede na napovedno_spr2 pri povprečni napovedni_spr1.
 
 # Grafični prikaz napovedi in pripadajočih intervalov zaupanja za povprečne napovedi
-plot(predictorEffects(m1, ~.), ylim = c(_,_), main = "") # Napovedane vrednosti in 95 % intervali zaupanja za povprečno odzivno_spr za m1; levo: glede na napovedno_spr1 pri povprečni napovedni_spr2, desno: glede na napovedno_spr2 pri povprečni napovedni_spr1.
+plot(predictorEffects(m1, ~.), main = "") # Napovedane vrednosti in 95 % intervali zaupanja za povprečno odzivno_spr za m1; levo: glede na napovedno_spr1 pri povprečni napovedni_spr2, desno: glede na napovedno_spr2 pri povprečni napovedni_spr1.
 
 #!!! graf parcialnih ostankov razlaga: 
-plot(predictorEffect(c("napovedna_spr1"), model))
+plot(predictorEffect(c("Gender"), model))
 # Razlaga: Povprečne napovedi za odzivno_spr (y os) v odvisnosti od napovedne_spr1 (x os) in napovedne_spr2 (več grafov glede na to spr - vrednosti v naslovih grafov) pri povprečni vrednosti napovedne_spr3.
 
 ```
@@ -345,32 +345,35 @@ Razlaga:
 ```{r}
 # slike ostankov
 par(mfrow = c(2, 2))
-plot(m0)
+plot(model)
 
 # Cel izpis za model
-summary(m0)
-names(summary(m0)) # za dodatne ali posamezne izpise
+summary(model)
+names(summary(model)) # za dodatne ali posamezne izpise
 
 # SSmodel in SSresidual
-anova(m0)
+anova(model)
 
 # Intervala zaupanja za parametra modela
-confint(m0) # Interpretacija: Če se napovedna_spr poveča za 1 (enota), pri 95 % zaupanju pričakujemo, da se bo odzivna_spr povečala na intervalu spodnja_meja (enota) do zgornja_meja (enota). → lahko pri interpretaciji tudi množiš vse z 10 ali 100
+confint(model) # Interpretacija: Če se napovedna_spr poveča za 1 (enota), pri 95 % zaupanju pričakujemo, da se bo odzivna_spr povečala na intervalu spodnja_meja (enota) do zgornja_meja (enota). → lahko pri interpretaciji tudi množiš vse z 10 ali 100
 
 # F-test za dva gnezdena modela: 
-anova(model1, model2) #prvi je gnezden
+anova(m1, model) #prvi je gnezden (to pomeni da ima manj regresorjev npr.: nima interakcije)
 
 # R2 in ocene parametrov s pripadajočimi 95 % parcialnimi IZ
-summary(model.p)$r.squared 
+summary(model)$r.squared 
 
 
 
 #########################  INTERAKCIJE ##############################
 
+par(mfrow = c(1,1))
+
+
 # Indentifikacija interakcije med dvema številskima napovednima spr
-graf1 = plot(Effect(c("napovedna_spr1", "napovedna_spr2"), model, partial.residuals = TRUE), 
+graf1 = plot(Effect(c("Age", "Gender"), model, partial.residuals = TRUE), 
              ci.style = "none", lattice = list(layout = c(4, 1)))
-graf2 = plot(Effect(c("napovedna_spr2", "napovedna_spr1"), model.m1, partial.residuals = TRUE),
+graf2 = plot(Effect(c("Gender", "Age"), model, partial.residuals = TRUE),
              ci.style = "none", lattice = list(layout = c(4, 1)))
 grid.arrange(graf1, graf2) # razlaga spodaj
 
@@ -379,7 +382,7 @@ anova(model) # Razlaga: P04, stran 24
 
 # Interakcija med opisno in številsko napovedno spr
 # Ta plot je bil narejen za vzporedni premici:
-plot(Effect(c("številska_napovedna_spr", "opisna_napovedna_spr"), model), # lahko isti graf narediš brez/z interakcijo
+plot(Effect(c("Age", "Gender"), model), # lahko isti graf narediš brez/z interakcijo
      multiline = TRUE, ci.style = "bands",
      key.args = list(x = 0.05, y = 0.8, corner = c(0, 0)),
      main = "", lty = c(1:2))

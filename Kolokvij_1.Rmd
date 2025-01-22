@@ -32,7 +32,7 @@ library(GLMsData)
 data(lungcap)
 data = lungcap # da se df imenuje data za naprej...
 # če je txt file
-data = read.table("blabla.txt", header=T) 
+#data = read.table("blabla.txt", header=T) 
 # če je csv file
 
 dim(data) # dimenzije vrstice, stolpci
@@ -57,17 +57,17 @@ data$Smoke = factor(data$Smoke, labels=c("Ne", "Da"))
 data$Ht = data$Ht*2.54
 
 # Dodaj labels faktorski napovedni_spr
-data$spr = factor(data$spr, labels=c("bla1", "bla2"))
+#data$spr = factor(data$spr, labels=c("bla1", "bla2"))
 
 # Zamenjaj oznake spr (recimo iz M → moški)
-levels(data$Gender) = c("Zenske", "Moski")
-levels(data$Smoke) = c("Ne", "Da")
+#levels(data$Gender) = c("Zenske", "Moski")
+#levels(data$Smoke) = c("Ne", "Da")
 
 # Centriranje napovedne spr
-data$spr_centered = data$spr - cifra
+#data$spr_centered = data$spr - cifra
 
 # Z ukazom rownames vsaki vrstici damo ime, to ime služi za identifikacĳo podatka na slikah in pri določenih izpisih
-rownames(data) = data$spr
+#rownames(data) = data$spr
 
 ```
 
@@ -76,7 +76,7 @@ rownames(data) = data$spr
 
 ```{r}
 # Razvrščanje grafov
-ggarrange(p1, p2, p3, p4, ncol=2, nrow=2) # to daš na koncu
+#ggarrange(p1, p2, p3, p4, ncol=2, nrow=2) # to daš na koncu
 
 # Osnovni razsevni grafikon - 1. možnost
 ggplot(data = data) +
@@ -225,13 +225,13 @@ m0$coef
 ## Z interakcijami
 
 ```{r}
-model = lm(odzivna_spr ~ napovedna_spr1 + napovedna_spr2 + napovedna_spr1:napovedna_spr2, data = data) # isto kot:
+#model = lm(odzivna_spr ~ napovedna_spr1 + napovedna_spr2 + napovedna_spr1:napovedna_spr2, data = data) # isto kot:
 model = lm(FEV ~ Gender * Age, data = data)
 
 modelska_matrika = model.matrix(model)
 head(modelska_matrika, n = 3)
 
-model.m2$coeff # Poglej število ocenjenih parametrov v modelu
+model$coeff # Poglej število ocenjenih parametrov v modelu
 
 # ... nadaljuj z 
 anova(model)
@@ -458,10 +458,10 @@ Grej zgoraj "se sekata (drugačna naklona, drugačni začetni vrednosti), če vk
 # Povprečna in posamična napoved
 
 ```{r}
-vrednosti = data.frame(napovedna_spr1 = cifra, napovedna_spr2 = cifra)
-povp.napoved = predict(m1, vrednosti, interval = "confidence")
-pos.napoved = predict(m1, vrednosti, interval = "prediction")
-print(data.frame(cbind(vrednosti, povp.napoved, pos.napoved)))
+#vrednosti = data.frame(napovedna_spr1 = cifra, napovedna_spr2 = cifra)
+#povp.napoved = predict(m1, vrednosti, interval = "confidence")
+#pos.napoved = predict(m1, vrednosti, interval = "prediction")
+#print(data.frame(cbind(vrednosti, povp.napoved, pos.napoved)))
 ```
 
 

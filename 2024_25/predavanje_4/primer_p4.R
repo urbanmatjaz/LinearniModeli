@@ -24,7 +24,7 @@ scatterplot(padavine ~ x, regLine = FALSE, smooth = FALSE, boxplots = 'xy',
             data = postaje, pch = 16,
             id = list(n = 2, location = "lr")) # id = TRUE
 
-# vidimo, da količina padavin v sloveniji od zahoda proti padaja. 
+# vidimo, da količina padavin v sloveniji od zahoda proti vzhodu pada. 
 # Variablinost padavin prav tako pada v zahoda proti vzhodu.
 # zveza ni linearna. (mogoče vseeno treba sprobat)
 # Če imamo box plot lahko povemo tudi kaj o porazdelitvi spremenljivk
@@ -42,7 +42,7 @@ symbox(~padavine, xlab= "Lambda", ylab="Transformirane vrednosti za padavine",
 summary(powerTransform(model.1))
 boxCox(model.1)
 
-# zberemo okroglo vrednost znotraj 95% IZ
+# zberemo okroglo vrednost znotraj 95% IZ -> -1
 
 # inverzna transformacija ne reši situacije
 
@@ -95,7 +95,7 @@ influencePlot(model.Pb, id.n=2)
 outlierTest(model.Pb)
 
 # Točka 105 je bila kandidat ampak po testu ne moremo zavrniti H0, da ni outlier.
-# Gledajo Bonferonijev popravek (unadjusted p * število testov (n = 103))
+# Gledamo Bonferonijev popravek (unadjusted p * število testov (n = 103))
 
 summary(model.Pb)
 
@@ -181,7 +181,7 @@ plot(Effect(c("x","z.nv"), model.m1, partial.residuals = TRUE),
      ci.style = "none", lattice = list(layout = c(4, 1)))
 
 # vidimo, da model relativno dobro deluje za nižje nadmorske višine
-# Večja nadmorska višina bolj vidimo potrrbo po interakciji
+# Večja nadmorska višina bolj vidimo potrebo po interakciji
 
 model.m2 <- lm(padavine ~ z.nv + x + z.nv:x , data = postaje)
 model.matrix(model.m2)
@@ -191,7 +191,7 @@ plot(Effect(c("z.nv", "x"), model.m2, partial.residuals = TRUE),
 
 # Vidimo, da modelske napovedi nimajo več istih naklonov
 # vidimo, da se gladilniki veliko bolj ujemajo 
-# (mamo mal podatkov, tko da molmo bit mal bolj prizanesljivi)
+# (mamo mal podatkov, tko da mormo bit mal bolj prizanesljivi)
 
 plot(Effect(c("x","z.nv"), model.m2, partial.residuals = TRUE),
      ci.style = "none", lattice = list(layout = c(4, 1)))
@@ -253,7 +253,7 @@ scatterplot(brain ~ body, regLine = FALSE, smooth = FALSE,
 # obe spremenljivki logaritmiramo, desetiški logaritem
 # ker nas zanima proporcionalno -> 1Kg pri slonu =/= kot 1kg pri človeku
 # Uporabimo desetiški log ker si lahko brez problema predstavljamo mase 
-
+# številka na X osi predstavlja 10^x
 
 scatterplot(log10(brain) ~ log10(body), regLine = FALSE, 
             smooth = list(span = 0.5, spread = FALSE),

@@ -1,0 +1,2 @@
+Če iščemo regresijske osamelce moramo pogledati studentizirane ostanke.
+Vzvodne točke so določene glede na vrednosti napovednih spremenljivk (če so ekstremne so vzvodne (če niso še osamelci zraven ni problema))

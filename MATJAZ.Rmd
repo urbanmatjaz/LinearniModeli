@@ -1,0 +1,188 @@
+---
+title: "Kolokvij 1 - Matjaž"
+author: "Urban Matjaz"
+date: "2025-01-23"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, warning=FALSE, include=FALSE}
+library(ggplot2)
+library(car)
+library(effects)
+library(gridExtra)
+
+library(ggpubr)
+library(ellipse)
+library(dplyr)
+library(vtable)
+library(reshape)
+library(corrplot)
+library(knitr)
+library(kableExtra)
+library(GLMsData)
+```
+
+# Naloga 1
+
+```{r}
+data = read.table("diamanti.txt", header=T) 
+
+dim(data) # dimenzije vrstice, stolpci
+head(data) # začetek tabele
+str(data) 
+summary(data) # min, max, kvantili, povprečje po spr
+
+data$barva = factor(data$barva, labels = c("Brezbarven", "Skoraj brezbarven", "Rumen"))
+```
+
+Imamo podatke o diamantih. Imamo 3 spremenljivke, in sicer ceno, barvo in karat.
+V tem podatkovnem setu je cena odvisna spremenljivka, karat in barva pa napovedni spremenljivki. 
+
+- Cena: Številska spremenljivka, min: 357, max: 17856, mean: 3978, median: 2315
+
+- Barva: Opisna spremenljivka s 3 vrednostmi: Brezbarven, Skoraj brezbarven, Rumen
+
+- Karat: Številska spremenljivka, min: 0.23, max: 2.75, mean: 0.81, median: 0,7
+
+# Naloga 2
+
+```{r}
+hist(data$cena, main = "Porazdelitev spr. Cena", xlab = "Cena")
+hist(data$karat, main = "Porazdelitev spr. karat", xlab = "karat")
+```
+
+Iz histogramov vidimo, da se tako Cena kot tudi Karat porazdeljujeta zelo asimetrično v desno.
+
+```{r}
+ggplot(data = data) +
+  geom_point(mapping = aes(x = karat, y = cena)) +
+  xlab("Karat (g)") + ylab("Cena (eur)") 
+
+ggplot(data = data) +
+  geom_point(mapping = aes(x = barva, y = cena)) +
+  xlab("barva") + ylab("Cena (eur)") 
+
+boxplot(data$cena ~ data$barva, 
+        xlab = "barva", ylab = "cena")
+```
+
+Iz 1. grafa vidimo, da se nam pojavlja problem heteroskedastičnosti.
+
+
+# Naloga 4
+
+```{r}
+model = lm(cena ~ karat + barva, data = data)
+
+par(mfrow = c(2, 2))
+plot(model)
+```
+
+Na grafih v levem stolpcu lahko vidimo, da je kršena predpostavka o konstantni varianci, kar pomeni, da je v modelu prisotna heteroskedastičnost.
+
+Na desnem zgornjem grafu vidimo, da se tudi ostanki ne porazdeljujejo po normalni porazdelitvi. ker se ostanki oddaljujejo od diagonale na repih to kaže na preveliko število prevelikih ostankov.
+
+# Naloga 5
+
+```{r}
+par(mfrow = c(1, 1))
+symbox(~ cena, xlab = "Lambda",
+ylab = "Transformirane vrednosti za ceno",
+data = data)
+
+summary(powerTransform(model))
+
+```
+
+Glede na zgornji graf vidimo, da je najbolj simetričen boxplot pri 0, torej log transformaciji. Na našem modelu naredimotako odzivno kot tudi številsko napovedno spremenljivko logaritmiramo z desetiškim logaritmom, torej tako ceno kot tudi karat logaritmiramo.
+
+```{r}
+model.t = lm(log10(cena) ~ log10(karat) + barva, data = data)
+par(mfrow = c(2, 2))
+plot(model.t)
+```
+
+Vidimo, da je zdaj diagnostika modela OK. Predpostavke so izpolnjene.
+
+# Naloga 6
+
+```{r}
+plot(Effect(c("karat", "barva"), model.t, partial.residuals = TRUE),
+     multiline = FALSE, ci.style = "bands",
+     key.args = list(x = 0.05, y = 0.8, corner = c(0, 0)),
+     main = "", lty = c(1:2))
+
+model.t.int = lm(log10(cena) ~ log10(karat) * barva, data = data)
+
+anova(model.t.int)
+```
+
+Uporabimo Sekvenčni F test. Vidimo, da interakcija pojasni več variabilnosti (je statistično značilna)
+
+# Naloga 7
+
+```{r}
+par(mfrow = c(1, 1))
+qqPlot(model.t.int, id = TRUE)
+
+outlierTest(model.t.int)
+
+influencePlot(model.t.int,
+              id = list(method = "noteworthy", n = 2, cex = 1, location = "lr"),
+              xlab = "Vzvodi", ylab = "Studentizirani ostanki")
+
+
+```
+
+Glede na qq plot je kn+andidat za regresijskega osamelca enota z id = 13 vendar nam outlier test ne zavrne ničelne hipoteze, da enota ni regresijski osamelec.
+
+na influencePlot-u vidimo, da imamo tudi nekaj vzvodnih točk npr.: 45, 12
+
+Nimamo pa nobene vpolivne točke, kar pomeni, da modela ni potrebno spreminjati.
+
+# 8 naloga
+
+```{r}
+
+summary(model.t.int)
+
+confint(model.t.int)
+(b <- coefficients(model.t.int))
+
+exp(b[1])
+exp(confint(model.t.int)[1,])
+
+```
+
+Intercept nima smisla, saj diamant ne more biti brez mase (karat = 0). Pri 95% gotovosti lahko trdimo, da je povprečna cena diamanta za referenčno skupino (brezbarven) med 4426.45 in 4881.75 
+
+```{r}
+exp(b[2])-1 * 100
+exp(confint(model.t.int)[2,])-1
+```
+
+Za vsak karat se pri brezbarvnem diamantu cena dvigne za 415%. S 95% gotovostjo lahko trdimo da se cena za brezbarvni diamant sz vsakim gramom poviša med 382% in 450%.
+
+```{r}
+exp(b[3])-1
+exp(confint(model.t.int)[3,])-1
+```
+
+Za vsak gram se pri skoraj brezbarvnem diamantu cena spusti za 17%.
+S 95% gotovostjo lahko trdimo da se cena za brezbarvni diamant sz vsakim gramom poviša med 11% in 4%.
+
+# 9 Naloga
+
+```{r}
+plot(Effect(c("karat", "barva"), model.t, partial.residuals = TRUE),
+     multiline = FALSE, ci.style = "bands",
+     key.args = list(x = 0.05, y = 0.8, corner = c(0, 0)),
+     main = "", lty = c(1:2), xlab = "log(karat")
+```
+

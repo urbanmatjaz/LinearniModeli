@@ -1,0 +1,322 @@
+"karat" "barva" "cena"
+"1" 0.42 "Brezbarven" 773
+"2" 0.55 "Brezbarven" 1580
+"3" 1.15 "Brezbarven" 7662
+"4" 0.72 "Skoraj brezbarven" 1866
+"5" 1.08 "Skoraj brezbarven" 6561
+"6" 0.73 "Brezbarven" 3255
+"7" 0.72 "Brezbarven" 1808
+"8" 0.91 "Brezbarven" 3726
+"9" 0.53 "Skoraj brezbarven" 1093
+"10" 0.6 "Brezbarven" 2484
+"11" 2.43 "Rumen" 17856
+"12" 0.3 "Rumen" 427
+"13" 1.11 "Brezbarven" 10602
+"14" 0.32 "Brezbarven" 825
+"15" 1.31 "Rumen" 5612
+"16" 0.93 "Brezbarven" 2618
+"17" 0.38 "Brezbarven" 1000
+"18" 0.34 "Brezbarven" 803
+"19" 1.54 "Rumen" 11651
+"20" 0.5 "Rumen" 1317
+"21" 0.55 "Brezbarven" 1401
+"22" 0.72 "Rumen" 2048
+"23" 1.01 "Brezbarven" 3604
+"24" 1.31 "Skoraj brezbarven" 6602
+"25" 0.4 "Brezbarven" 687
+"26" 1.09 "Skoraj brezbarven" 5219
+"27" 0.54 "Skoraj brezbarven" 1338
+"28" 0.5 "Brezbarven" 1624
+"29" 1.5 "Brezbarven" 6300
+"30" 1.23 "Skoraj brezbarven" 10317
+"31" 1.02 "Skoraj brezbarven" 4727
+"32" 1.12 "Skoraj brezbarven" 8721
+"33" 0.71 "Brezbarven" 3464
+"34" 0.31 "Skoraj brezbarven" 755
+"35" 1.59 "Brezbarven" 13298
+"36" 0.82 "Brezbarven" 3363
+"37" 0.73 "Brezbarven" 2504
+"38" 0.38 "Skoraj brezbarven" 898
+"39" 1.13 "Brezbarven" 6563
+"40" 0.77 "Brezbarven" 3644
+"41" 0.41 "Brezbarven" 711
+"42" 1.01 "Rumen" 4641
+"43" 1.35 "Skoraj brezbarven" 10378
+"44" 1 "Skoraj brezbarven" 5806
+"45" 0.31 "Rumen" 507
+"46" 0.4 "Brezbarven" 945
+"47" 1.35 "Brezbarven" 5761
+"48" 1.34 "Brezbarven" 7305
+"49" 0.3 "Brezbarven" 500
+"50" 0.27 "Brezbarven" 620
+"51" 0.91 "Brezbarven" 3846
+"52" 0.7 "Skoraj brezbarven" 3384
+"53" 0.4 "Brezbarven" 666
+"54" 0.32 "Brezbarven" 900
+"55" 0.34 "Brezbarven" 745
+"56" 0.9 "Brezbarven" 4381
+"57" 2.01 "Skoraj brezbarven" 12450
+"58" 1.2 "Brezbarven" 6098
+"59" 0.52 "Brezbarven" 2168
+"60" 0.77 "Brezbarven" 3318
+"61" 1.06 "Skoraj brezbarven" 4878
+"62" 0.4 "Brezbarven" 662
+"63" 1.11 "Skoraj brezbarven" 4842
+"64" 2.02 "Brezbarven" 14574
+"65" 0.52 "Brezbarven" 1073
+"66" 0.71 "Rumen" 2400
+"67" 0.6 "Brezbarven" 2124
+"68" 1.21 "Skoraj brezbarven" 6710
+"69" 0.71 "Skoraj brezbarven" 3210
+"70" 0.88 "Skoraj brezbarven" 3400
+"71" 0.56 "Skoraj brezbarven" 1698
+"72" 0.93 "Skoraj brezbarven" 4666
+"73" 0.27 "Brezbarven" 577
+"74" 0.5 "Brezbarven" 1157
+"75" 0.4 "Skoraj brezbarven" 980
+"76" 1.51 "Brezbarven" 8869
+"77" 0.59 "Brezbarven" 1671
+"78" 1.1 "Skoraj brezbarven" 6470
+"79" 0.72 "Brezbarven" 2530
+"80" 1 "Brezbarven" 7744
+"81" 0.3 "Brezbarven" 605
+"82" 1 "Skoraj brezbarven" 7007
+"83" 0.31 "Brezbarven" 544
+"84" 1.71 "Brezbarven" 14426
+"85" 0.52 "Brezbarven" 1720
+"86" 0.32 "Brezbarven" 702
+"87" 1.07 "Skoraj brezbarven" 5254
+"88" 2.05 "Brezbarven" 17066
+"89" 1.02 "Skoraj brezbarven" 5506
+"90" 0.33 "Brezbarven" 781
+"91" 1.52 "Skoraj brezbarven" 12123
+"92" 0.31 "Rumen" 502
+"93" 1.15 "Skoraj brezbarven" 4743
+"94" 1.01 "Brezbarven" 4466
+"95" 0.9 "Brezbarven" 3205
+"96" 0.75 "Brezbarven" 2859
+"97" 0.4 "Skoraj brezbarven" 1123
+"98" 0.29 "Brezbarven" 731
+"99" 0.32 "Brezbarven" 720
+"100" 0.7 "Brezbarven" 2230
+"101" 1.65 "Rumen" 12495
+"102" 0.31 "Rumen" 408
+"103" 0.31 "Brezbarven" 544
+"104" 0.54 "Skoraj brezbarven" 1957
+"105" 1.05 "Brezbarven" 5457
+"106" 0.35 "Brezbarven" 522
+"107" 1 "Brezbarven" 4014
+"108" 0.34 "Brezbarven" 596
+"109" 1.73 "Rumen" 11554
+"110" 0.38 "Skoraj brezbarven" 833
+"111" 0.35 "Skoraj brezbarven" 773
+"112" 0.91 "Brezbarven" 4107
+"113" 0.33 "Skoraj brezbarven" 453
+"114" 0.23 "Brezbarven" 439
+"115" 1.67 "Rumen" 12406
+"116" 0.9 "Skoraj brezbarven" 2138
+"117" 0.34 "Skoraj brezbarven" 775
+"118" 0.7 "Brezbarven" 2697
+"119" 0.52 "Brezbarven" 1605
+"120" 1.22 "Rumen" 6419
+"121" 0.42 "Rumen" 712
+"122" 0.5 "Brezbarven" 1286
+"123" 1.24 "Rumen" 3312
+"124" 0.7 "Brezbarven" 2822
+"125" 1 "Brezbarven" 4200
+"126" 1.05 "Skoraj brezbarven" 4410
+"127" 0.33 "Brezbarven" 854
+"128" 0.51 "Brezbarven" 1644
+"129" 0.32 "Skoraj brezbarven" 936
+"130" 0.32 "Brezbarven" 972
+"131" 0.34 "Skoraj brezbarven" 765
+"132" 1.21 "Skoraj brezbarven" 5226
+"133" 0.31 "Brezbarven" 698
+"134" 0.7 "Brezbarven" 3206
+"135" 0.71 "Brezbarven" 2681
+"136" 0.41 "Brezbarven" 876
+"137" 0.55 "Brezbarven" 1673
+"138" 0.4 "Brezbarven" 1323
+"139" 1.01 "Brezbarven" 4484
+"140" 1.04 "Skoraj brezbarven" 4368
+"141" 0.25 "Skoraj brezbarven" 357
+"142" 0.5 "Brezbarven" 1240
+"143" 1.22 "Skoraj brezbarven" 8830
+"144" 1.22 "Skoraj brezbarven" 5703
+"145" 1.5 "Brezbarven" 14199
+"146" 0.4 "Brezbarven" 990
+"147" 0.96 "Skoraj brezbarven" 4265
+"148" 1.55 "Skoraj brezbarven" 9704
+"149" 1.18 "Rumen" 5182
+"150" 0.57 "Brezbarven" 1376
+"151" 0.69 "Skoraj brezbarven" 2553
+"152" 1.55 "Rumen" 8076
+"153" 0.71 "Skoraj brezbarven" 1840
+"154" 0.71 "Brezbarven" 3146
+"155" 0.25 "Skoraj brezbarven" 445
+"156" 0.31 "Skoraj brezbarven" 798
+"157" 0.7 "Brezbarven" 2310
+"158" 0.56 "Brezbarven" 2066
+"159" 0.31 "Skoraj brezbarven" 640
+"160" 2.05 "Rumen" 16611
+"161" 0.91 "Brezbarven" 4067
+"162" 1.21 "Skoraj brezbarven" 8446
+"163" 1.55 "Brezbarven" 5974
+"164" 0.31 "Skoraj brezbarven" 476
+"165" 0.54 "Skoraj brezbarven" 1240
+"166" 0.29 "Skoraj brezbarven" 673
+"167" 1.04 "Brezbarven" 8532
+"168" 0.35 "Skoraj brezbarven" 614
+"169" 0.33 "Brezbarven" 1021
+"170" 0.59 "Skoraj brezbarven" 2131
+"171" 0.91 "Skoraj brezbarven" 3830
+"172" 2.17 "Skoraj brezbarven" 13248
+"173" 1.12 "Brezbarven" 5233
+"174" 0.51 "Skoraj brezbarven" 1920
+"175" 0.27 "Skoraj brezbarven" 464
+"176" 1.43 "Rumen" 6727
+"177" 0.35 "Brezbarven" 644
+"178" 0.47 "Brezbarven" 1616
+"179" 0.54 "Skoraj brezbarven" 1028
+"180" 0.32 "Skoraj brezbarven" 698
+"181" 0.31 "Brezbarven" 692
+"182" 0.42 "Skoraj brezbarven" 1031
+"183" 0.35 "Skoraj brezbarven" 522
+"184" 0.39 "Brezbarven" 1255
+"185" 1.5 "Brezbarven" 16048
+"186" 2.01 "Skoraj brezbarven" 16499
+"187" 1.54 "Skoraj brezbarven" 14433
+"188" 0.7 "Skoraj brezbarven" 2276
+"189" 0.3 "Brezbarven" 658
+"190" 0.5 "Brezbarven" 1746
+"191" 0.44 "Rumen" 726
+"192" 0.73 "Brezbarven" 2431
+"193" 0.5 "Brezbarven" 2454
+"194" 0.73 "Rumen" 2101
+"195" 1.12 "Skoraj brezbarven" 5504
+"196" 1.02 "Skoraj brezbarven" 6738
+"197" 0.91 "Brezbarven" 4051
+"198" 1.54 "Rumen" 8969
+"199" 0.7 "Rumen" 2513
+"200" 0.3 "Brezbarven" 911
+"201" 0.74 "Skoraj brezbarven" 3254
+"202" 2.58 "Brezbarven" 12500
+"203" 1.49 "Brezbarven" 8779
+"204" 1.11 "Skoraj brezbarven" 6857
+"205" 0.84 "Skoraj brezbarven" 4325
+"206" 1.2 "Rumen" 3011
+"207" 0.51 "Brezbarven" 1678
+"208" 0.3 "Skoraj brezbarven" 506
+"209" 0.27 "Skoraj brezbarven" 566
+"210" 1.11 "Skoraj brezbarven" 6061
+"211" 0.5 "Skoraj brezbarven" 1746
+"212" 0.71 "Skoraj brezbarven" 2178
+"213" 0.31 "Brezbarven" 1046
+"214" 0.41 "Brezbarven" 779
+"215" 0.42 "Skoraj brezbarven" 1400
+"216" 0.28 "Skoraj brezbarven" 508
+"217" 1 "Brezbarven" 4576
+"218" 1 "Skoraj brezbarven" 6748
+"219" 0.5 "Brezbarven" 1671
+"220" 0.91 "Skoraj brezbarven" 4913
+"221" 1.14 "Skoraj brezbarven" 4463
+"222" 2.01 "Skoraj brezbarven" 13587
+"223" 0.5 "Brezbarven" 2153
+"224" 1.54 "Skoraj brezbarven" 13846
+"225" 0.41 "Brezbarven" 1107
+"226" 0.26 "Skoraj brezbarven" 468
+"227" 1.15 "Skoraj brezbarven" 6492
+"228" 0.55 "Brezbarven" 1415
+"229" 0.9 "Skoraj brezbarven" 4173
+"230" 0.31 "Brezbarven" 734
+"231" 0.31 "Brezbarven" 722
+"232" 0.41 "Brezbarven" 1153
+"233" 0.38 "Brezbarven" 744
+"234" 0.41 "Brezbarven" 755
+"235" 1.06 "Brezbarven" 8893
+"236" 1.6 "Skoraj brezbarven" 9444
+"237" 1.51 "Brezbarven" 13945
+"238" 0.32 "Brezbarven" 758
+"239" 0.57 "Skoraj brezbarven" 1837
+"240" 0.7 "Rumen" 1827
+"241" 0.59 "Brezbarven" 1622
+"242" 2.01 "Brezbarven" 13811
+"243" 0.53 "Skoraj brezbarven" 1607
+"244" 0.7 "Brezbarven" 2463
+"245" 0.36 "Brezbarven" 1215
+"246" 0.27 "Skoraj brezbarven" 490
+"247" 1.52 "Rumen" 9129
+"248" 0.58 "Brezbarven" 2189
+"249" 0.52 "Brezbarven" 1720
+"250" 1.58 "Skoraj brezbarven" 11927
+"251" 0.32 "Skoraj brezbarven" 612
+"252" 0.95 "Rumen" 3918
+"253" 0.54 "Brezbarven" 1786
+"254" 1.7 "Brezbarven" 8397
+"255" 0.37 "Skoraj brezbarven" 833
+"256" 1.65 "Rumen" 8590
+"257" 0.42 "Skoraj brezbarven" 687
+"258" 0.42 "Brezbarven" 1024
+"259" 0.6 "Brezbarven" 1970
+"260" 1.51 "Skoraj brezbarven" 10743
+"261" 1.02 "Brezbarven" 8637
+"262" 0.5 "Brezbarven" 1259
+"263" 1.02 "Skoraj brezbarven" 3904
+"264" 0.5 "Skoraj brezbarven" 1791
+"265" 2 "Skoraj brezbarven" 10752
+"266" 0.6 "Brezbarven" 2263
+"267" 0.53 "Skoraj brezbarven" 1721
+"268" 0.85 "Brezbarven" 2737
+"269" 0.57 "Skoraj brezbarven" 1655
+"270" 0.32 "Skoraj brezbarven" 612
+"271" 0.31 "Skoraj brezbarven" 707
+"272" 0.33 "Skoraj brezbarven" 666
+"273" 2.01 "Skoraj brezbarven" 16287
+"274" 1.01 "Skoraj brezbarven" 5050
+"275" 0.31 "Brezbarven" 1046
+"276" 1.31 "Skoraj brezbarven" 11531
+"277" 0.31 "Brezbarven" 680
+"278" 2.39 "Rumen" 16791
+"279" 1.03 "Skoraj brezbarven" 3692
+"280" 0.71 "Brezbarven" 2381
+"281" 0.36 "Brezbarven" 825
+"282" 2.09 "Skoraj brezbarven" 12295
+"283" 1 "Brezbarven" 4939
+"284" 0.78 "Brezbarven" 2722
+"285" 0.38 "Skoraj brezbarven" 1125
+"286" 0.7 "Skoraj brezbarven" 2330
+"287" 0.93 "Brezbarven" 4229
+"288" 0.35 "Brezbarven" 829
+"289" 1.04 "Skoraj brezbarven" 6996
+"290" 2.02 "Rumen" 13991
+"291" 0.73 "Brezbarven" 3066
+"292" 1 "Rumen" 4538
+"293" 2.75 "Brezbarven" 13156
+"294" 1.02 "Brezbarven" 6734
+"295" 0.3 "Skoraj brezbarven" 526
+"296" 0.91 "Skoraj brezbarven" 3340
+"297" 1.64 "Skoraj brezbarven" 11159
+"298" 0.7 "Skoraj brezbarven" 2513
+"299" 0.29 "Brezbarven" 815
+"300" 0.61 "Brezbarven" 1408
+"301" 0.3 "Brezbarven" 484
+"302" 0.31 "Brezbarven" 680
+"303" 1.07 "Brezbarven" 3415
+"304" 0.7 "Rumen" 1795
+"305" 0.74 "Brezbarven" 2553
+"306" 0.51 "Rumen" 1004
+"307" 0.71 "Brezbarven" 2573
+"308" 1.01 "Skoraj brezbarven" 7451
+"309" 0.51 "Skoraj brezbarven" 1116
+"310" 0.47 "Rumen" 884
+"311" 0.73 "Skoraj brezbarven" 3209
+"312" 1.21 "Rumen" 5096
+"313" 0.37 "Brezbarven" 791
+"314" 0.71 "Rumen" 2315
+"315" 0.3 "Skoraj brezbarven" 684
+"316" 0.6 "Brezbarven" 3082
+"317" 0.51 "Brezbarven" 1793
+"318" 1.1 "Skoraj brezbarven" 6972
+"319" 1.6 "Skoraj brezbarven" 11489
+"320" 0.3 "Skoraj brezbarven" 764
+"321" 0.5 "Brezbarven" 1447

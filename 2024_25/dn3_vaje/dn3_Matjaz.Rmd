@@ -14,6 +14,10 @@ library(car)
 ```
 
 
+# 3. DOMAČA NALOGA
+
+# 1. naloga
+
 ```{r}
 getData = function(beta_3, n = 100, beta_0 = 10, beta_1 = 0.5, beta_2 = 0.15, sigma = 10) {
   set.seed(1) 
@@ -41,6 +45,7 @@ par(mfrow = c(2, 2))
 # Model brez interakcije
 
 ```{r}
+par(mfrow = c(2, 2))
 summary(model_1)
 plot(model_1)
 avPlots(model_1)
@@ -49,18 +54,120 @@ crPlots(model_1)
 
 Model dobro sledi predpostavkam, vendar se pojavljajo rahle nelinearnosti pri x1 (to lahkjo razberemo iz crPlot-a), kar pomeni, da bi lahko interakcijski člen izboljšal ujemanje modela.
 
+
+
 ```{r}
 data_2 <- data_list[[2]]  
-model_2 <- lm(y ~ x1 + x2, data = data_2)
+model_2 <- lm(y ~ x1 * x2, data = data_2)
 data_3 <- data_list[[3]]  
-model_3 <- lm(y ~ x1 + x2, data = data_3)
+model_3 <- lm(y ~ x1 * x2, data = data_3)
 ```
 
+# model z interakcijo beta_3 = 0.05
 
 ```{r}
+par(mfrow = c(2, 2))
 summary(model_2)
 plot(model_2)
 avPlots(model_2)
-crPlots(model_2)
 ```
 
+Vidimo, da so predpostavke modela izpolnjene, torej ni izrazite heteroskedastičnosti (ob večjih vrednostih, je variabilnost ostankov sicer malo manjša ampak ne preveč). Prav tako vidimo da je vpliv neodvisnih spremenljivk linearen.
+
+# model z interakcijo beta_3 = 0.5
+
+```{r}
+par(mfrow = c(2, 2))
+summary(model_3)
+plot(model_3)
+avPlots(model_3)
+```
+
+Podatki so homoskedastični, q-q plot kaže na odstopanje od normalnosti na repih, Kaže se linearnost.
+
+# 2. naloga
+
+```{r}
+data_snowgeese <- read.table("SNOWGEESE.txt", header = TRUE)
+```
+
+```{r}
+par(mfrow = c(1, 1))
+plot(data_snowgeese$obs2, data_snowgeese$photo, 
+     xlab = "obs2", 
+     ylab = "photo", 
+     main = "Odvisnost photo od obs2",
+     pch = 19, col = "blue")
+abline(lm(photo ~ obs2, data = data_snowgeese), col = "red")
+```
+
+Model se mi ne zdi primeren zaradi osamelcev.
+
+```{r}
+
+model.goske <- lm(photo ~ obs2, data = data_snowgeese)
+
+summary(model.goske)
+```
+
+```{r}
+par(mfrow = c(2, 2))
+plot(model.goske)
+```
+
+Vidimo, da so predpostavke modela kršene. Imamo heteroskedastičnost, nelinearno odvisnost med spremenljivkami in tudi ostanki niso porazdeljeni normalno.
+
+```{r}
+model.goske.log <- lm(log(photo) ~ log(obs2), data = data_snowgeese)
+
+```
+
+```{r}
+par(mfrow = c(2, 2))
+plot(model.goske.log)
+```
+
+Še vedno prihaja do malo heterskedastičnosti (variabilnost je nižja pri nižjih vrednostih), nelinearnost v modelu smo z logaritmiranjem odpravili, prav tako so se standardizirani ostanki približali normalni porazdelitvi.
+
+
+```{r}
+par(mfrow = c(1, 1))
+influencePlot(model.goske.log,
+              id = list(method = "noteworthy", n = 2, cex = 1, location = "lr"),
+              xlab = "Vzvodi", ylab = "Studentizirani ostanki")
+
+outlierTest(model.goske.log)
+```
+
+Enota 43 ima največji potencial, da bi bila regresijski osamelec, vendar po opravljenem testu vidimo, da ni. Bonferonijeva p vrednost je večja od 0,05.
+
+```{r}
+plot(data_snowgeese$obs2, hatvalues(model.goske.log), pch = 16,
+xlab = c("obs2"), ylab = c("Vzvod"))
+```
+
+```{r}
+vplivne = lm.influence(model.goske.log)
+names(vplivne)
+sort(vplivne$hat, decreasing = TRUE)[1:4] # 4 točke z največjimi vzvodi
+```
+
+Vidimo, da so 4 najbolj vplivne točke 29, 41, 12 in 19.
+
+
+```{r}
+summary(model.goske.log)
+```
+
+Če se obs2 poveča za 1% se bo photo povečal za 0,87%.
+
+Z izbranim modelom torej log(obs2) pojasnimo približno 90% variabilnosti log(photo).
+
+```{r}
+exp(confint(model.goske.log)[1,])
+exp(confint(model.goske.log)[2,])
+```
+
+S 95% gotovostjo lahko trdimo, da ko je vrednost obs2 = 1, se vrednost photo nahaja med 1.231 in 2.541.
+
+S 95% gotovostjo lahko trdimo, da ko se vrednost obs2 poveča za 1 se vrednost photo poveča za faktor med 2.184447 in 2.596565 

@@ -1,0 +1,459 @@
+---
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+header-includes:
+  \usepackage{float}
+ \floatplacement{figure}{H}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+\renewcommand{\figurename}{Slika}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "",
+                      fig.align = 'center', 
+                      fig.width = 5, 
+                      fig.height = 4,
+                      warning = FALSE,
+                      message = FALSE)
+```
+
+\section{Vaja 4: Polinomska regresija in zlepki}
+
+`R` paketi, ki jih bomo uporabili na vajah:
+
+```{r message=FALSE}
+library(reshape2) # reshape data sets for ggplot (melt)
+library(ggplot2) # nice plots (ggplot)
+library(knitr)  # for markdown 
+library(ISLR) # datasets
+library(splines) # spline basis functions
+library(effects) # graphical effect displays
+library(Hmisc) # data analysis, manipulation, and visualization
+```
+
+V današnjih vajah bomo obravnavali nekatere pristope, ki modelirajo nelinearnost. V spološnem ti pristopi temeljijo na tem, da spremenljivki $X$ dodamo dodatne spremenljivke, ki so transformacije $X$. Ko so t.i. bazne funkcije določene, lahko ustrezno transformirano modelsko matriko modeliramo z linearnim modelom, saj je model v teh novo določenih spremenljivkah linearen. Za lažje razumevanje nekaterih od teh pristopov si lahko pomagamo z aplikacijo: https://clinicalbiometrics.shinyapps.io/Bendyourspline/
+
+V podatkovnem okviru \texttt{Wage} v paketu \texttt{ISLR} so podatki o plačah 
+$3000$ moških delavcev v srednje atlantski regiji. 
+
+```{r}
+data("Wage")
+str(Wage)
+```
+
+```{r}
+#summary table 
+summary(Wage)
+```
+```{r  fig.width=6, fig.height=5, out.width="80%",fig.cap="Odvisnost \\texttt{logwage} od \\texttt{age} v podatkovnem okviru \\textit{Wage}."}
+ggplot(data=Wage, aes(x=age, y=log(wage))) +
+  geom_point() +
+  geom_smooth(se=FALSE) +
+  #geom_smooth(method="lm", se=FALSE) +
+  xlab("Starost (leta)") +
+  ylab("log(Plača (1000 $))")
+```
+
+\subsection{1. Polinomska regresija}
+
+V prejšnji vaji smo videli, da je zveza med logaritmom plače (\texttt{logwage}) in starostjo (\texttt{age}) nelinearna. Nelinearnost bomo najprej modelirali s polinomsko regresijo. Naš običajni linearni model:
+
+$$y_i=\beta_0+\beta_1x_i+\epsilon_i$$
+bomo nadomestili z modelom:
+
+$$y_i=\beta_0+\beta_1x_i+\beta_2x_i^2+\beta_3x_i^3+\ldots+\beta_px_i^p+\epsilon_i,$$
+
+pri čemer je $d$ stopnja polinoma. Ocene parametrov v modelu lahko preprosto ocenimo z metodo najmanjših kvadratov, saj gre za standardni linearni model z napovednimi spremenljivkami $x_i, x_{2i}, x_{3i}, \ldots, x_{pi}$. V praksi redko nastavimo $p$, ki je večji od 3 ali 4, saj se pri velikih stopnjah polinoma model hitro preprilega, še posebej na robovih spremenljivke $X$.
+
+Komentar: Z modeliranjem nelinearnosti bomo na račun interpretabilnosti modela izboljšali napovedno kakovost modela (ocene parametrov ne bodo imele vsebinskega pomena, dobili pa bomo bolj natančne napovedi). V kolikor bi nas v praksi zanimale le napovedi za povprečno plačo na podlagi starosti, bi lahko v model vključili kar spremenljivko `wage` na originalni skali, četudi imamo prisotno heteroskedastičnost. Razmislite, zakaj.
+
+```{r}
+model.stopnja1 <- lm(logwage ~ age, data = Wage)
+model.stopnja2 <- lm(logwage ~ poly(age, 2), data = Wage)
+model.stopnja3 <- lm(logwage ~ poly(age, 3), data = Wage)
+model.stopnja4 <- lm(logwage ~ poly(age, 4), data = Wage)
+model.stopnja5 <- lm(logwage ~ poly(age, 5), data = Wage)
+model.stopnja6 <- lm(logwage ~ poly(age, 6), data = Wage)
+```
+
+Kako se spreminjajo stopinje prostosti modela z večanjem stopnje polinoma?
+Kakšno je število ocenjenih parametrov? V kakšnem razmerju je število
+ocenjenih parametrov in število stopinj prostosti modela?
+
+Katera stopnja polinoma je ustrezna? Utemeljite odgovor.
+
+```{r}
+anova(model.stopnja1, model.stopnja2, 
+      model.stopnja3, model.stopnja4, 
+      model.stopnja5, model.stopnja6)
+```
+Linearni model, v katerem imamo le spremenljivko `age`, ocenjuje dva parametra: presečišče in naklon. Stopinje prostosti modela `model.stopnja1` so torej enake $n-2=2998$. Z vsako stopnjo polinoma se oceni dodatni parameter, torej se porabljajo stopinje prostosti.  
+
+Pri izbiri stopnje polinoma bi si lahko pomagali tudi z drugimi metodami (npr. z navzkrižnim preverjanjem, AIC, prilagojeni $R^2$ ...). Več o tem v poglavju \textit{Izbira modela}.
+
+Ker so ortogonalni polinomi med seboj neodvisni, enake rezultate dobimo tudi na podlagi $t$-testov v povzetku modela:
+
+```{r}
+summary(model.stopnja5)
+```
+
+Na podlagi $F$-testa za primarjavo gnezdenih modelov (oz. $t$-testa) izberemo polinom četrte stopnje. 
+
+Poglejmo si, kako izgleda modelska matrika izbranega modela.
+
+```{r}
+head(model.matrix(model.stopnja4))
+```
+
+Poglejmo še ocene koeficientov v izbranem modelu. Kolikšen delež varibilnosti
+odzivne spremenljivke pojasni model?
+
+```{r}
+summary(model.stopnja4)
+```
+
+Kaj se zgodi, če v modelu nastavimo argument `raw = TRUE`? 
+
+```{r}
+model.stopnja4.raw <- lm(logwage ~ poly(age, 4, raw = TRUE), data = Wage)
+
+head(model.matrix(model.stopnja4.raw))
+```
+
+Če funkcijo \texttt{poly()} uporabimo brez privzete nastavitve argumenta \texttt{raw=FALSE}, štiri bazne funkcije ne predstavljajo ortogonalnih polinomov, temveč je vsaka bazna funkcija linearna kombinacija spremenljivk $age$, $age^2$, $age^3$ in $age^4$. Te funkcije med seboj niso neodvisne in rezultati testiranja ničelnih domnev o parametrih v povzetku linearnega modela niso enaki, kot pri $F$-testu  za gnezdene modele. Vrednosti ocen parametrov so drugačne, v obeh primerih pa dobimo enake napovedane vrednosti in enak koeficient determinacije.
+
+```{r}
+summary(model.stopnja4.raw)
+```
+
+Grafično prikažimo napovedi modela polinoma stopnje $4$ s $95 \%$ intervali
+zaupanja za povprečno in posamično vrednost s funkcijo `predict()`.
+
+```{r}
+age.nap <- seq(from = min(Wage$age), to = max(Wage$age))
+
+napovedi.povp <- predict(model.stopnja4, newdata = data.frame(age = age.nap),
+                       interval = "confidence")
+napovedi.pos <- predict(model.stopnja4, newdata = data.frame(age=age.nap),
+                         interval="prediction")
+```
+
+```{r fig.width=7, fig.height=6, out.width="80%", fig.cap="Napovedi logaritma plače (\\texttt{logwage}) na podlagi modela \\texttt{model.stopnja4} s 95 \\% intervali zaupanja za povprečno (modra) oz. posamično napoved (rdeča)."}
+
+plot(Wage$age, Wage$logwage, xlim = range(Wage$age), cex = 0.5, col ="darkgrey", 
+     xlab="Starost", ylab="log(Plača)", ylim=c(3, 6))
+lines(age.nap, napovedi.povp[,"fit"], lwd = 2, col=" blue")
+matlines (age.nap, napovedi.povp[, c("lwr","upr")], lwd = 2, col = " blue", lty = 2)
+matlines (age.nap, napovedi.pos[, c("lwr","upr")], lwd = 2, col = " red", lty = 2)
+```
+
+Za prikaz povprečnih napovedi si lahko pomagamo tudi z ukazi iz paketa `effects`.
+
+```{r fig.width=7, fig.height=5, out.width="80%",fig.cap="Povprečne napovedi logaritma plače (\\texttt{logwage}) na podlagi modela \\texttt{model.stopnja4} s 95 \\% intervali zaupanja."} 
+plot(predictorEffects(model.stopnja4), main = "", ylim=c(3, 6))
+```
+
+V praksi se polinomska regresija uporablja le za nižje stopnje polinomov (nekje do 4). Primerjajmo polinomsko regresijo 15. stopnje z naravnim zlepkom s 15 stopinjami prostosti. 
+
+```{r fig.width=7, fig.height=6, out.width="80%", fig.cap="Povprečne napovedi logaritma plače (\\texttt{logwage}) na podlagi polinomske regresije 15. stopnje ter regresije naravnih zlepkov s 15 stopinjami prostosti."}
+
+plot(Wage$age, Wage$logwage, xlim = range(Wage$age), cex = 0.5, col ="darkgrey", 
+     xlab="Starost", ylab="log(Plača)")
+lines(age.nap, predict(lm(logwage ~ poly(age, 15), data = Wage), 
+                       newdata = data.frame(age=age.nap)), lwd = 2, col="blue")
+lines(age.nap, predict(lm(logwage ~ ns(age, df=15), data = Wage), 
+                       newdata = data.frame(age=age.nap)), lwd = 2, col="red")
+legend("bottomright", c("Polinomska regresija", "Regresija zlepkov"), 
+       lty=c(1,1), col=c("blue", "red"), bty="n")
+```
+
+Prevelika stopnja polinoma privede do nezaželenega obnašanja v repih medtem, ko je pri regresiji zlepkov zveza med `logwage` in `age` še smiselna. 
+
+\subsection{2. Kubični zlepki}
+
+Poglejmo torej še, kako bi nelinearno zvezo med `logwage` in `age` modelirali s kubičnimi zlepki. Kubični zlepek je funkcija, ki je zvezna in ima na vozliščih zvezne prve in druge odvode. Da se pokazati, da bazne funkcije (to so t.i. \textit{truncated power basis}):
+$$h_1(X)=1, \qquad h_2(X)= X, \qquad h_3(X)=X^2,$$
+$$h_4(X)=X^3, \qquad h_5(X) = (X-a_1)_+^3,  \qquad h_6(X) = (X-a_2)_+^3,$$
+
+pri čemer je $h_m(X)$ $m$-ta transformacija $X$, predstavljajo kubični zlepek z vozliščema pri $a_1$ in $a_2$. Kubični zlepki so izpeljani iz kubične polinomske regresije po odsekih, pri čemer je število parametrov za zgornji primer enako: (3 regije)$\times$(4 parametri za vsako regijo)-(2 vozlišči)$\times$(3 omejitve za vsako vozlišče)$=6$. 
+
+Tako kot smo videli pri polinomski regresiji (ortogonalni/neortogonalni zlepki), obstajajo tudi drugačne bazne funkcije, ki tvorijo kubične zlepke, ki se v praksi pogosteje uporabljajo zaradi večje numerične stabilnosti.
+
+Na splošno je torej število porabljenih stopinj prostosti pri kubičnih zlepkih enako $3+K$ ($+$ presečišče), kjer je $K$ število vozlišč. To je pomembno zato, ker fleksibilnost zlepka v programskih paketih pogosto določamo tako, da z argumentom `df` nastavimo število stopinj prostosti zlepka. Ukaz `bs(x,df=7)` generira matriko baznih funkcij s $7-3=4$ vozlišči na percentilih x (20., 40., 60. in 80.)
+
+Na napovedi pa ne vpliva le število, pomemben je tudi položaj vozlišč. Zlepki se najbolje prilegajo na intervalih z veliko vozlišči, zato več vozlišč postavimo tja, kjer želimo, da se funkcija hitreje spreminja, in manj vozlišč tja, kjer je bolj stabilna. Velikokrat privzete nastavitve funkcij položaj vozlišč že dovolj smiselno določajo (običajno na podlagi percentilov tako, da nastavimo želeno število stopinj prostosti zlepka). Kdaj pa temu ni tako, zato je priporočljivo položaj vozlišč nastaviti ročno. Taki primeri so:
+
+- Neenakomerna porazdelitev podatkov: privzeta postavitev vozlišč lahko povzroči preprileganje (\textit{overfitting}) na intervalih z malo podatki in podprileganje (\textit{underfitting}) na območjih z več podatki. 
+
+- Prisotnost znanih prelomnih točk ali pragov: če so prelomne točke, kjer se odnosi spreminjajo na nekem področju znani (npr. fiziološki pragi v medicini, spremembe politike v ekonomiji), je smiselno vozlišča postaviti na teh mestih.  
+
+- Nelinearno razmerje med napovedno in odzivno spremenljivko, ki se razlikuje glede na posamezni interval.
+
+- Preprečevanje pre- oz. podprileganja: preveč vozlišč lahko povzroči preprileganje, zaradi česar zlepek preveč sledi posameznim enotam v podatkih. premalo vozlišč lahko vodi do preveč zglajene zveze.  
+
+Naredite model regresije kubičnih zlepkov z vozlišči na 33,75, 42 in 51 let
+in ga poimenujte `model.bs3`. Modelsko matriko za kubične zlepke lahko zgeneriramo s funkcijo `bs` (B-splines) iz paketa `splines`. B-zlepki so reparametrizirana polinomska regresija po odsekih. Po privzetih nastavitvah funkcija generira modelsko matriko kubičnih zlepkov (argument za stopnjo (degree) `d=3`). 
+
+```{r}
+model.bs3 <- lm(logwage ~ bs(age, knots = c(33.75, 42.00, 51.00)), data = Wage) 
+# ocenjujemo K + degree (p=3 za kubične) + 1 (intercept) parametrov
+anova(model.bs3)
+```
+
+Kako se spreminjajo stopinje prostosti modela z večanjem števila vozlišč?
+Kakšno je število ocenjenih parametrov? V kakšnem razmerju je število
+ocenjenih parametrov in število stopinj prostosti?
+
+\subsection{3. Naravni zlepki}
+
+Vendar pa tudi pri kubičnih zlepkih lahko pride do neželenega obnašanja na robovih funkcije. To omilijo naravni zlepki z dodatnimi omejitvami, da je funkcija izven zunanjih vozlišč (\textit{boundary knots}) linearna. To na vsakem repu sprosti še dve stopinji prostosti, naravni zlepek porabi torej $K-1$ ($+$ presečišče) stopinj prostosti, pri čemer je $K$ vsota notranjih ter dveh zunanjih vozlišč. 
+
+Primerjajte napovedi modela regresije kubičnih zlepkov `model.bs3` z modelom regresije naravnih
+zlepkov z enako postavljenimi vozlišči ter z enakim številom porabljenih stopinj prostosti. Po privzetih nastavitvah funkcije v paketu `splines` so notranja vozlišča postavljena na vrednosti kvantilov, ki vrednosti napovedne spremenljivke razdelijo na številčno enake dele, zunanji vozlišči, v repih katerih je funkcija linearna, pa sta pri najmanjši oz. največji vrednosti spremenljivke $X$. Nekoliko drugačna priporočila da Harrell, glejte dokumetacijo `?rcspline.eval` v paketu `Hmisc`.
+
+```{r}
+# enako postavljena vozlišča
+model.ns5 <- lm(logwage ~ ns(age, df = 4), data = Wage) 
+# ocenjunemo K (notranja + 2 zunanji vozlišči) - 1 + 1 (intercept) parametrov
+attr(ns(Wage$age, df = 4), "knots") # ukaz izpiše le notranja vozlišča
+attr(ns(Wage$age, df = 4), "Boundary.knots") 
+# zunanji vozlišči v paketu splines sta min(age) in max(age) 
+
+# enake df
+model.ns7 <- lm(logwage ~ ns(age, df = 6), data = Wage) 
+# ocenjunemo K (notranja + 2 zunanji vozlišči) - 1 + 1 (intercept) parametrov
+attr(ns(Wage$age, df = 6), "knots") # ukaz izpiše le notranja vozlišča
+attr(ns(Wage$age, df = 6), "Boundary.knots") 
+# zunanji vozlišči v paketu splines sta min(age) in max(age) 
+
+head(model.matrix(model.ns5))
+
+age.nap <- seq(from = min(Wage$age), to = max(Wage$age))
+
+napovedi.bs3 <- predict(model.bs3, newdata = data.frame(age = age.nap),
+                        interval = "confidence")
+
+napovedi.ns5 <- predict(model.ns5, newdata = data.frame(age = age.nap),
+                        interval = "confidence")
+
+napovedi.ns7 <- predict(model.ns7, newdata = data.frame(age = age.nap),
+                        interval = "confidence")
+
+#napovedi.stopnja4 <- predict(model.stopnja4, newdata = data.frame(age = age.nap),
+     #                   interval = "confidence")
+```
+
+
+
+```{r fig.width=7, fig.height=6, out.width="80%",  fig.cap="Povprečne napovedi logaritma plače (\\texttt{logwage}) glede na starost (\\texttt{age}), modelirano z naravnimi zlepki (modra), kubičnimi zlepki (rdeča) ter polinomom 4. stopnje (zelena) s 95 \\% intervali zaupanja."}
+
+plot(Wage$age, Wage$logwage, col ="gray", xlab="Starost", ylab="log(Plača)")
+
+lines(age.nap, napovedi.bs3[,"fit"], col="red", lwd=2)
+matlines(age.nap, napovedi.bs3[, c("lwr","upr")], lwd = 1, col = " red", lty = 2)
+
+lines(age.nap, napovedi.ns5[,"fit"], col="blue", lwd=2)
+matlines(age.nap, napovedi.ns5[, c("lwr","upr")], lwd = 1, col = " blue", lty = 2)
+
+lines(age.nap, napovedi.ns7[,"fit"], col="green", lwd=2)
+matlines(age.nap, napovedi.ns7[, c("lwr","upr")], lwd = 1, col = " green", lty = 2)
+
+legend("bottomright", 
+       c("Regresija kubičnih zlepkov (df=6)",
+         "Regresija naravnih zlepkov (df=4)",
+         "Regresija naravnih zlepkov (df=6)"), 
+       lty=1, col=c("red", "blue", "green"), bty="n")
+
+```
+
+Kako se razlikujejo napovedi modelov? Zapišite ugotovitve.
+
+S tem, ko smo pri naravnih zlepkih sprostili štiri stopnje prostosti (zaradi dveh omejitev na vsakem robu funkcije), ki jih lahko bolj smiselno porabimo tako, da raje dodamo vozlišča v notranjosti, smo pri istem številu stopinj prostosti modela uspeli zmanjšati varianco napak, kar se odraža v ožjih intervalih zaupanja za povprečno napoved predvsem na robovih funkcije. 
+
+Zdaj naredimo še modele naravnih zlepkov za naslednja števila vozlišč: $K = 3, 4, 5, 6, 7, 8$. 
+
+```{r}
+model.ns3 <- lm(logwage ~ ns(age, df = 2), data = Wage)
+attr(ns(Wage$age, df = 2), "knots") # notranje vozlišče
+attr(ns(Wage$age, df = 2), "Boundary.knots") # zunanji vozlišči
+
+model.ns4 <- lm(logwage ~ ns(age, df = 3), data = Wage)
+attr(ns(Wage$age, df = 3), "knots")
+
+model.ns5 <- lm(logwage ~ ns(age, df = 4), data = Wage)
+attr(ns(Wage$age, df = 4), "knots")
+
+model.ns6 <- lm(logwage ~ ns(age, df = 5), data = Wage)
+attr(ns(Wage$age, df = 5), "knots")
+
+model.ns7 <- lm(logwage ~ ns(age, df = 6), data = Wage)
+attr(ns(Wage$age, df = 6), "knots")
+
+model.ns8 <- lm(logwage ~ ns(age, df = 7), data = Wage)
+attr(ns(Wage$age, df = 7), "knots")
+
+model.ns9 <- lm(logwage ~ ns(age, df = 8), data = Wage)
+attr(ns(Wage$age, df = 8), "knots")
+
+model.ns10 <- lm(logwage ~ ns(age, df = 9), data = Wage)
+attr(ns(Wage$age, df = 9), "knots")
+```
+
+Kakšno je število ocenjenih parametrov v modelu z naravnimi zlepki glede na število vozlišč? V kakšnem razmerju je število ocenjenih parametrov, število vozlišč in število stopinj prostosti modela?
+
+Narišite napovedi za `logwage` na podlagi vseh modelov z naravnimi zlepki. Opazujte, kakšne
+so razlike med napovedmi. Zapišite svoje ugotovitve.
+
+```{r}
+age.nap <- seq(from = min(Wage$age), to = max(Wage$age))
+
+napovedi.ns3 <- predict(model.ns3, newdata =data.frame(age=age.nap),
+                        interval="confidence")
+napovedi.ns4 <- predict(model.ns4, newdata =data.frame(age=age.nap),
+                        interval="confidence")
+napovedi.ns5 <- predict(model.ns5, newdata =data.frame(age=age.nap),
+                        interval="confidence")
+napovedi.ns6 <- predict(model.ns6, newdata =data.frame(age=age.nap),
+                        interval="confidence")
+napovedi.ns7 <- predict(model.ns7, newdata =data.frame(age=age.nap),
+                        interval="confidence")
+napovedi.ns8 <- predict(model.ns8, newdata =data.frame(age=age.nap),
+                        interval="confidence")
+napovedi.ns9 <- predict(model.ns9, newdata =data.frame(age=age.nap),
+                        interval="confidence")
+napovedi.ns10 <- predict(model.ns10, newdata =data.frame(age=age.nap),
+                        interval="confidence")
+```
+
+
+```{r  fig.width=7, fig.height=6, out.width="90%", fig.cap="Povprečne napovedi logaritma plače (\\texttt{logwage}) glede na starost (\\texttt{age}), modelirano z naravnimi zlepki z različnim številom notranjih vozlišč."}
+
+plot(Wage$age, Wage$logwage, col ="gray", xlab="Starost", ylab="log(Plača)")
+
+lines(age.nap, napovedi.ns3[,"fit"], col="#FFFFCC", lwd=2)
+abline(v=attr(ns(Wage$age, df = 2),"knots"), col="#FFFFCC", lty=2)
+
+lines(age.nap, napovedi.ns4[,"fit"], col="#FFEDA0", lwd=2)
+abline(v=attr(ns(Wage$age, df = 3),"knots"), col="#FFEDA0", lty=2)
+
+lines(age.nap, napovedi.ns5[,"fit"], col="#FED976", lwd=2)
+abline(v=attr(ns(Wage$age, df = 4),"knots"), col="#FED976", lty=2)
+
+lines(age.nap, napovedi.ns6[,"fit"], col="#FEB24C", lwd=2)
+abline(v=attr(ns(Wage$age, df = 5),"knots"), col="#FEB24C", lty=2)
+
+lines(age.nap, napovedi.ns7[,"fit"], col="#FD8D3C", lwd=2)
+abline(v=attr(ns(Wage$age, df = 6),"knots"), col="#FD8D3C", lty=2)
+
+lines(age.nap, napovedi.ns8[,"fit"], col="#FC4E2A", lwd=2)
+abline(v=attr(ns(Wage$age, df = 7),"knots"), col="#FC4E2A", lty=2)
+
+lines(age.nap, napovedi.ns9[,"fit"], col="#E31A1C", lwd=2)
+abline(v=attr(ns(Wage$age, df = 8),"knots"), col="#E31A1C", lty=2)
+
+lines(age.nap, napovedi.ns10[,"fit"], col="#BD0026", lwd=2)
+abline(v=attr(ns(Wage$age, df = 9),"knots"), col="#BD0026", lty=2)
+```
+
+Koliko vozlišč je najprimerneje uporabiti? Svojo izbiro utemeljite.
+
+```{r}
+modeli <- list(model.stopnja1, model.ns3, model.ns4, model.ns5,
+               model.ns6, model.ns7, model.ns8, model.ns9, model.ns10)
+adj_r2 <- sapply(modeli, function(m) summary(m)$adj.r.squared)
+
+which.max(adj_r2)
+round(adj_r2, 5)
+```
+
+```{r fig.width=5, fig.height=4, out.width="80%", fig.cap="Prilagojene vrednosti $R^2$ v odvisnosti od števila stopinj prostosti naravnega zlepka."}
+plot(1:9, adj_r2, type="b",
+     xlab="Stopinje prostosti naravnega zlepka", 
+     ylab="Prilagojeni R2")
+```
+
+Slika jasno nakazuje izboljšanje v primerjavi z linearnih modelom. Izboljšanje je za modele z več kot 3 stopinjami prostosti zlepka minimalno, zato izberemo `model.ns4`.
+
+Zakaj v tem primeru $F$-testa ne moremo uporabiti, kot smo ga pri polinomski regresiji?
+
+$F$-test lahko uporabimo za primerjavo gnezdenih modelov. Kadar pa kompleksnost zlepka variiramo tako, da povečujemo število stopinj prostosti, bodo vsakič tudi položaji vozlišč drugačni in s tem bazne funkcije. Ne gre torej za gnezdene modele!  
+
+Poglejmo si izpis povzetka izbranega modela:
+
+```{r}
+summary(model.ns4)
+```
+
+Kaj lahko zaključimo na podlagi tega izpisa? Kako bi model lahko interpretirali?
+
+Funkcija `ns` ločuje med zunanjimi in notranjimi vozlišči (nekateri `R`-ovi paketi, npr. `rcs` v `Hmisc` pa ne). V kolikor bi želeli model definirati na podlagi vozlišč, argument `knots` določa notranja vozlišča, argument `Boundary.knots` pa zunanji vozlišči. Primerjajmo napovedi modela `model.ns4`, kjer so vozlišča definirana glede na prizvete nastavitve, z modelom, kjer vozlišča določimo glede na Harrellova  priporočila (dokumetacija `?rcspline.eval` v paketu `Hmisc`.)
+
+```{r}
+st.vozlisc <- 4
+
+#Harrell priporocila
+zunanja <- if (st.vozlisc > 3) 0.05 else 0.1 
+if (st.vozlisc > 6) {
+  zunanja <- 0.025
+}
+
+p <- seq(zunanja, 1 - zunanja, length = st.vozlisc)
+#vozlisca Harrell
+(vsi <- quantile(Wage$age, p, na.rm = TRUE))
+#attr(ns(Wage$age, df = 8), "knots")
+#attr(ns(Wage$age, df = 8), "Boundary.knots")
+
+Boundary.knots <- c(vsi[1], vsi[st.vozlisc])
+knots <- vsi[-c(1, st.vozlisc)]
+
+model.ns4.Harrell <- lm(logwage ~ ns(age, knots = knots, 
+                                     Boundary.knots =  Boundary.knots), data = Wage)
+
+c(summary(model.ns4)$adj.r.squared, summary(model.ns4.Harrell)$adj.r.squared)
+```
+
+
+```{r}
+age.nap <- seq(from = min(Wage$age), to = max(Wage$age))
+
+napovedi.ns4 <- predict(model.ns4, newdata =data.frame(age=age.nap),
+                        interval="confidence")
+
+napovedi.ns4.Harrell <- predict(model.ns4.Harrell, newdata =data.frame(age=age.nap),
+                        interval="confidence")
+```
+
+
+```{r  fig.width=7, fig.height=6, out.width="90%", fig.cap="Povprečne napovedi logaritma plače (\\texttt{logwage}) glede na starost (\\texttt{age}), modelirano z naravnimi zlepki z različno postavljenimi vozlišči, s 95 \\% intervali zaupanja."}
+
+plot(Wage$age, Wage$logwage, col ="gray",  xlab="Starost", ylab="log(Plača)")
+lines(age.nap, napovedi.ns4[,"fit"], col="blue", lwd=2)
+abline(v=c(min(Wage$age), attr(ns(Wage$age, df = 8),"knots"), max(Wage$age)), col="blue", lty=2)
+matlines(age.nap, napovedi.ns4[, c("lwr","upr")], lwd = 1, col = "blue", lty = 2)
+
+lines(age.nap, napovedi.ns4.Harrell[,"fit"], col="red", lwd=2)
+abline(v=vsi, col="red", lty=2)
+matlines(age.nap, napovedi.ns4.Harrell[, c("lwr","upr")], lwd = 1, col = " red", lty = 2)
+
+legend("bottomright", c("Vozlišča splines", "Vozlišča Harrell"), 
+       lty=c(1,1), col=c("red", "blue"), bty="n")
+```
+
+Rekli smo, da lahko dani parameter v linearnem modelu interpretiramo kot razliko v odvisni spremenljivki za dve osebi, ki se za 1 enoto razlikujeta v vrednostih dane napovedne spremenljivke, medtem ko so vrednosti ostalih napovednih spremenljivk konstante. Takšna interpretacija pri modelu, ki vsebuje polinome ali zlepke, ni mogoča, saj si ne moremo predstavljati, da bi recimo lahko spremenili vrednost spremenljivke $X^2$, medtem ko bi bila vrednost $X$ nespremenjena.
+
+Kadar v modelu sprostimo predpostavko linearnosti, žrtvujemo del interpretabilnosti modela za bolj
+fleksibilen model, na podlagi katerega lahko dobimo bolj natančne napovedi. Posameznih parametrov v takem modelu se ne da interpretirati. Pri interpretaciji pa si pomagamo z grafičnimi prikazi.
+
+Interpretacija: Zveza med `log(wage)` in `age` je v modelu nelinearna. `log(wage)` narašča z `age` nekje do 40. leta, po tem letu pa se stabilizira oz. rahlo pade.
+
+
+\subsection{Domača naloga: Interpretacija modela z zlepki}
+
+1. Modelirajte \texttt{logwage} v odvisnosti od starosti (\texttt{age}) in izobrazbe (\texttt{education}), kot smo to naredili v prejšnji vaji, vendar v modelu ustrezno modelirajte nelinearnost. Pri diagnostiki si pomagaje z orodji, ki smo jih tekom predmeta obravnavali. Rezultate interpretirajte! Pri interpretaciji si pomagajte z ustreznimi grafičnimi prikazi.
+

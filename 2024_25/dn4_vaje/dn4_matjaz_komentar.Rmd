@@ -1,0 +1,96 @@
+---
+title: "dn4_Matjaz"
+author: "Urban Matjaž"
+date: "`r Sys.Date()`"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+
+library(reshape2) # reshape data sets for ggplot (melt)
+library(ggplot2) # nice plots (ggplot)
+library(knitr) # for markdown
+library(ISLR) # datasets
+library(splines) # spline basis functions
+library(effects) # graphical effect displays
+library(Hmisc) # data analysis, manipulation, and visualization
+
+```
+
+```{r}
+data("Wage")
+```
+
+```{r}
+model.stopnja1 <- lm(logwage ~ age * education, data = Wage)
+model.ns3 <- lm(logwage ~ ns(age, df = 2) * education, data = Wage)
+model.ns4 <- lm(logwage ~ ns(age, df = 3) * education, data = Wage)
+model.ns5 <- lm(logwage ~ ns(age, df = 4) * education, data = Wage)
+model.ns6 <- lm(logwage ~ ns(age, df = 5) * education, data = Wage)
+model.ns7 <- lm(logwage ~ ns(age, df = 6) * education, data = Wage)
+model.ns8 <- lm(logwage ~ ns(age, df = 7) * education, data = Wage)
+model.ns9 <- lm(logwage ~ ns(age, df = 8) * education, data = Wage)
+model.ns10 <- lm(logwage ~ ns(age, df = 9) * education, data = Wage)
+
+```
+
+Rabu bi delat interakcijo... pa delat tud polinoimsko regresijo do 4 stopnje (nrdimo anovo da vidmo če se še splača), viši pa negremo zarad preprileganja
+
+Pri zlepkih, pa nemormo uporabt f-statistike (anove) ker niso gnezdeni modeli. Naceloma uporabmo AIC (manjsa vrednost pomen boljsi model) lahko pa tud adj. $R^2$
+
+
+```{r}
+age.nap <- seq(min(Wage$age), max(Wage$age), length.out = 100)
+napovedi.ns3 <- data.frame(age = age.nap, education = "1. < HS Grad")
+napovedi.ns3 <- cbind(napovedi.ns3, predict(model.ns3, newdata = napovedi.ns3, interval = "confidence"))
+
+napovedi.ns4 <- data.frame(age = age.nap, education = "1. < HS Grad")
+napovedi.ns4 <- cbind(napovedi.ns4, predict(model.ns3, newdata = napovedi.ns4, interval = "confidence"))
+
+napovedi.ns5 <- data.frame(age = age.nap, education = "1. < HS Grad")
+napovedi.ns5 <- cbind(napovedi.ns5, predict(model.ns3, newdata = napovedi.ns5, interval = "confidence"))
+
+napovedi.ns6 <- data.frame(age = age.nap, education = "1. < HS Grad")
+napovedi.ns6 <- cbind(napovedi.ns6, predict(model.ns3, newdata = napovedi.ns6, interval = "confidence"))
+
+napovedi.ns7 <- data.frame(age = age.nap, education = "1. < HS Grad")
+napovedi.ns7 <- cbind(napovedi.ns7, predict(model.ns3, newdata = napovedi.ns7, interval = "confidence"))
+
+napovedi.ns8 <- data.frame(age = age.nap, education = "1. < HS Grad")
+napovedi.ns8 <- cbind(napovedi.ns8, predict(model.ns3, newdata = napovedi.ns8, interval = "confidence"))
+
+napovedi.ns9 <- data.frame(age = age.nap, education = "1. < HS Grad")
+napovedi.ns9 <- cbind(napovedi.ns9, predict(model.ns3, newdata = napovedi.ns9, interval = "confidence"))
+
+napovedi.ns10 <- data.frame(age = age.nap, education = "1. < HS Grad")
+napovedi.ns10 <- cbind(napovedi.ns10, predict(model.ns3, newdata = napovedi.ns10, interval = "confidence"))
+```
+
+
+```{r}
+modeli <- list(model.stopnja1, model.ns3, model.ns4, model.ns5,
+model.ns6, model.ns7, model.ns8, model.ns9, model.ns10)
+adj_r2 <- sapply(modeli, function(m) summary(m)$adj.r.squared)
+
+plot(1:9, adj_r2, type="b",xlab="Stopinje prostosti naravnega zlepka",ylab="Prilagojeni R2")
+
+
+```
+
+Glede na zgornji graf bi se odločil za model model.ns4, saj je izboljšanje popravljenega $R^2$ pri modelih z več kot 3 stopnjami prostosti zlepka minimalno.
+
+```{r}
+summary(model.ns4)
+```
+
+Vidimo, da zadnji zlepek ni statistično značilen kar bi lahko pomenilo, da niti ni potreben v našem modelu. Vse stopnje izobrazbe, ki so višje kot referenčna stopnja, torej manj kot srednja šola, so statistično značilne v primerjavi z referenčno  stopnjo. Višja stopnja izobrazbe v našem modelu pomeni tudi višji logaritem plače. naš model pojasni približno 30% variabilnosti logaritma plače.
+
+```{r}
+plot(Wage$age, Wage$logwage, col ="gray", xlab="Starost", ylab="log(Plača)")
+lines(age.nap, napovedi.ns4[,"fit"], col="blue", lwd=2)
+abline(v=c(min(Wage$age), attr(ns(Wage$age, df = 8),"knots"), max(Wage$age)), col="blue", lty=2)
+matlines(age.nap, napovedi.ns4[, c("lwr","upr")], lwd = 1, col = "blue", lty = 2)
+```
+

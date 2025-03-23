@@ -1,0 +1,408 @@
+---
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+header-includes:
+  \usepackage{float}
+  \floatplacement{figure}{H}
+  \usepackage{amsmath}
+editor_options: 
+  markdown: 
+    wrap: 72
+  chunk_output_type: console
+---
+
+\renewcommand{\figurename}{Slika}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "",
+                      fig.align = 'center', 
+                      fig.width = 5, 
+                      fig.height = 4,
+                      warning = FALSE)
+```
+
+\section{Vaja 6: Izbira modela}
+
+`R` paketi, ki jih bomo uporabili na vajah:
+
+```{r message=FALSE}
+library(vtable) # summary table
+library(kableExtra) # creates nice latex tables
+library(corrplot) # correlation plot
+library(car) # regression
+library(reshape2) # reshape data sets for ggplot (melt)
+library(ggplot2) # nice plots (ggplot)
+library(knitr)  # for markdown 
+library(leaps) # best subset
+library(glmnet) # lasso
+library(mgcv) # gam
+library(summarytools) # summary table
+```
+
+Kako pristopati k modeliranju je v prvi meri odvisno od namena modeliranja. Kadar želimo na primer zgraditi nek pojasnjevalni model, to je, kadar želimo kvantificirati vzročni vpliv nekega proučevanega dejavnika na odzivno spremenljivko, si bomo prizadevali predvsem, da bo dobljena ocena danega vpliva nepristranska. Za to je pomembno dobro razumevanje vzročne povezanosti med setom neodvisnih spremenljivk ter odzivno spremenljivko, torej dobro predhodno poznavanje problema. Za gradnjo takega modela bo potrebno na primer poznati vse moteče (\textit{confounding}) spremenljivke, ki imajo vpliv tako na proučevani dejavnik kot tudi na odzivno spremenljivko. 
+
+Kadar je cilj modeliranja napovedovanje, pa nas zanima predvsem, kako natančno lahko nek model napove vrednost odzivne spremenljivke za neke nove enote. Ovrednotenje kakovosti modela je izjemno pomemben korak modeliranja, saj nas vodi pri izbiri učne metode. Cilj tovrstnega modeliranja je najti kompromis med pristranskostjo in varianco modela (\textit{bias-variance trade off}): želimo torej najti model, ki minimira pričakovano napako napovedi. Izkaže se, da ocena napake napovedi, ki jo dobimo na učnih podatkih, na katerih smo naredili model, ne da dobre ocene pričakovane napake napovedi. S kompleksnostjo modela se ocena na učnih podatkih lahko prilega zelo zapletenim zvezam med odzivno in napovednimi spremenljivkami. Posledično se pristranskost napovedi zmanjšuje, vendar se povečuje varianca. Učna napaka se tako s kompleksnostjo modela dosledno zmanjšuje in običajno pade na nič, če kompleksnost modela dovolj povečamo. Vendar pa se model, kjer je napaka napovedi na učnih podatkih enaka nič, preprilega in bo navadno dal slabe napovedi za nove enote.
+
+V praksi tako modeliranje za namen napovedi poteka v dveh korakih:
+
+- izbira modela: različne modele primerjamo med sabo, da izberemo končni model;
+- ovrednotenje modela: ko smo izbrali končni model, ocenimo napako napovedi na testnih podatkih.
+
+Če imamo na voljo veliko podatkov, lahko podatke delimo po principu slučajnosti na tri dele: učni niz, validacijski niz in testni niz. Učni niz se uporablja za gradnjo modela, validacijski niz za oceno napake napovedi pri izbiri modela, testni niz pa za oceno kakovosti (napake napovedi) končnega izbranega modela. Pomembno je, da do ovrednotenja modela testni niz ostane skrit in nedotaknjen. Če namesto tega testni niz uporabljamo večkrat in izberemo model z najmanjšo napako napovedi na testnem nizu, bo ocenjena testna napaka končnega izbranega modela podcenila pravo testno napako.
+
+```{r echo=FALSE, fig.width=7, fig.height=1, out.width="90%", fig.cap="Razdelitev podatkov na tri dele, ko imamo na voljo zadosti podatkov."}
+df <- data.frame(
+  xmin = c(0, 2, 3),
+  xmax = c(2, 3, 4),
+  ymin = c(0, 0, 0),
+  ymax = c(1, 1, 1),
+  label = c("Učni", "Validacijski", "Testni")
+)
+
+ggplot() +
+  geom_rect(data = df, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax), 
+            fill = c("lightblue", "lightgreen", "lightpink"), color = "black") +
+  geom_text(data = df, aes(x = (xmin + xmax) / 2, y = (ymin + ymax) / 2, label = label), 
+            size = 6, fontface = "bold") +
+  theme_void() 
+
+```
+Kadar podatkov ni dovolj, da bi jih razdelili na 3 dele, lahko korak validacije aproksimiramo bodisi analitično bodisi z metodami ponovnega vzorčenja. Na današnji vaji bomo obravnavali nekaj takih metod.
+
+V podatkovnem okviru `bejzbol_train` so podatki o 175 igralcev bejzbola v prvi ligi, ki vključujejo 20 spremenljivk. Cilj modeliranja bo zgraditi napovedni model, ki bo kar se da natančno napovedoval plače (`Salary`) igralcev bejzbola v novi sezoni (leto 1987). 
+
+```{r echo=FALSE}
+train_set <- read.table("bejzbol_train.txt", header=TRUE)
+str(train_set)
+```
+
+```{r, eval=FALSE, echo=FALSE}
+dfSummary(train_set, plain.ascii=FALSE, style="grid", graph.magnif=0.8, valid.col = F, na.col = F,  tmp.img.dir = "/tmp")
+```
+
+Poglejmo si najprej univariatne porazdelitve spremenljivk v podatkih ter korelacije med spremenljivkami.
+
+```{r echo=FALSE}
+sumtable(train_set, 
+           add.median = T, digits = 1,
+             title = "Opisne statistike za spremenljivke v podatkovnem okviru 
+           \\texttt{bejzbol\\_train}.") %>% 
+  kable_styling(latex_options = "HOLD_position")
+```
+
+
+```{r echo=FALSE, message=FALSE, fig.width=7, fig.height=6, out.width="90%", fig.cap=" Univariatne porazdelitve spremenljivk v podatkovnem okviru \\texttt{bejzbol\\_train}."}
+
+train_long <- melt(train_set[, c("AtBat", "Hits", "HmRun", "Runs", "RBI", "Walks",
+                                 "Years", "CAtBat", "CHits", "CHmRun", "CRuns", "CRBI",
+                                 "CWalks", "PutOuts", "Assists", "Errors", "Salary")])
+
+qplot(value, data = train_long) + 
+  facet_wrap(~variable, scales = "free") + 
+  theme_bw() + 
+  xlab("")
+```
+
+
+```{r echo=FALSE, fig.width=7, fig.height=6, out.width="95%", fig.cap="Spearmanovi koeficienti korelacije med napovednimi spremenljivkami v podatkovnem okviru \\texttt{bejzbol\\_train}."}
+colors10 <- colorRampPalette(c("#0000aa","white","#aa0000"))(10)
+corrplot.mixed(cor(train_set[, c("AtBat", "Hits", "HmRun", "Runs", "RBI", "Walks",
+                                 "Years", "CAtBat", "CHits", "CHmRun", "CRuns", "CRBI",
+                                 "CWalks", "PutOuts", "Assists", "Errors", "Salary")],
+                   method = "spearman"),
+               lower.col = colors10, upper.col = colors10,
+               tl.col="black",   tl.cex = 0.5, number.cex = 0.8)
+```
+Porazdelitev odzivne spremenljivke `Salary` je asimetrična v desno, zato bomo njene vrednosti logaritmirali.
+
+```{r}
+train_set$Salary <- log(train_set$Salary)
+```
+
+Poglejmo si še matriko razsevnih grafikonov za številske spremenljivke v podatkih. 
+
+```{r echo=FALSE, fig.width=7, fig.height=7, out.width="95%", fig.cap="Matrika razsevnih grafikonov za številske spremenljivke v podatkovnem okviru \\texttt{bejzbol\\_train}."}
+pairs(train_set[, c("AtBat", "Hits", "HmRun", "Runs", "RBI", "Walks",
+                    "Years", "CAtBat", "CHits", "CHmRun", "CRuns", "CRBI",
+                    "CWalks", "PutOuts", "Assists", "Errors", "Salary")])
+```
+
+Vidimo, da nekatere spremenljivke močno korelirajo.
+
+Najprej naredimo polni model, ki vključuje vseh $k=19$ napovednih spremenljivk.
+
+```{r fig.width=7, fig.height=6, out.width="85%", fig.cap="Ostanki za polni model \\texttt{m0}."}
+m0 <- lm(Salary~., data=train_set)
+
+par(mfrow=c(2,2))
+plot(m0)
+```
+
+Vidimo, da slike ostankov kažejo na nelinearnost v modelu.
+
+```{r}
+vif(m0)
+```
+
+V modelu imamo prisotno kolinearnost. Za bolj natančne napovedi ima smisel nekatere spremenljivke izločiti.
+
+Poglejmo si grafe parcialnih ostankov za model `m0`.
+
+```{r message=FALSE, fig.width=7, fig.height=8, out.width="100%", fig.cap="Parcialni ostanki za model \\texttt{m0} v odvisnosti od napovednih spremenljivk."}
+crPlots(m0, layout = c(4, 5))
+```
+Za vizualizacijo napake napovedi za posamezno napovedno spremenljivko lahko prikažemo tudi ostanke v odvisnosti od napovednih spremenljivk:
+
+```{r message=FALSE, fig.width=7, fig.height=8, out.width="85%", fig.cap="Ostanki za model \\texttt{m0} v odvisnosti od napovednih spremenljivk."}
+
+train_resid_long <- cbind(train_long[train_long[,"variable"]!="Salary",], 
+"resid" = rep(m0$residuals, length(unique(train_long$variable))-1))
+
+ggplot(data = train_resid_long, aes(x = value, y = resid)) +
+  geom_point() + 
+  geom_smooth(se = T) +
+  facet_wrap( ~ variable, scale = "free") +
+  xlab("Vrednost napovedne spremenljivke") +
+  ylab("Ostanki") +
+  theme_bw()
+```
+
+Slika ostankov v odvisnosti od vrednosti napovednih spremenljivk nakazuje na nelinearnost pri nekaterih spremenljivkah, npr. `Years`, `CAtBat`.
+
+V naslednjem koraku bomo poskusili v naš model izbrati spremenljivke, ki so pomembne za napovedovanje `log(Salary)`, moteče spremenljivke (\textit{noise}) pa odstraniti iz modela. 
+
+\subsection{Izbira najboljše podmnožice spremenljivk}
+
+Najprej bomo poskusili z izbiro najboljše podmnožice spremenljivk (\textit{best subset selection}) na podlagi statistike $C_p$ ter prilagojene vrednosti $R_a^2$. Splošni algoritem za izbiro najboljše množice spremenljivk je sledeči:
+
+\begin{enumerate}
+    \item Naj bo $\mathcal{M}_0$ ničelni model, ki vsebuje le presečišče brez napovednih spremenljivk. Tak model bo dal za vsako enoto napoved, ki bo enaka povprečni vrednosti odzivne spremenljivke. 
+    \item Za $j = 1, 2, \dots, k$:
+    \begin{enumerate}
+        \item Naredi $\binom{j}{k}$ modelov, ki vsebujejo natanko $j$ napovednih spremenljivk.
+        \item Izmed vseh $\binom{j}{k}$ modelov izberi najboljši model $\mathcal{M}_j$ na podlagi najmanjše RSS oz. največjega $R^2$.
+    \end{enumerate}
+    \item Izmed $\mathcal{M}_0, \mathcal{M}_1, \ldots, \mathcal{M}_k$ izberi najboljši končni model na podlagi nekega kriterija za izbiro modela (npr., AIC, prilagojeni $R^2$). 
+\end{enumerate}
+
+Pri izbiri najboljše podmnožice spremenljivk si lahko pomagamo s funkcijo `regsubsets` iz paketa `leaps`, argument `nvmax` določa maksimalno število napovednih spremenljivk v modelu. Funkcija na podlagi RSS oz. $R^2$ izbere `nvmax` najboljših modelov z $1, \ldots,$ `nvmax` napovednimi spremenljivkami. 
+
+```{r}
+# nvmax nastavimo na število vseh napovednih spremenljivk 
+best_subset = regsubsets(Salary ~. , data = train_set, nvmax = 19) 
+summary(best_subset)
+```
+
+Funkcija `plot.regsubsets` prikaže izbiro najboljše podmožice za vsak model z $1,\ldots,$ `nvmax` napovednimi spremenljivkami.
+
+```{r fig.width=6, fig.height=5, out.width="85%", fig.cap="Izbrane spremenljivke za najboljši model po Cp-statistiki glede na število napovednih spremenljivk v modelu."}
+
+par(mfrow=c(1,1))
+plot(best_subset, scale = "Cp") # cp je isto kot AIC
+```
+
+Med 19 najboljšimi modeli lahko izbiramo na podlagi različnih kriterijev, npr. $C_p$ ali Adj $R^2$.
+
+```{r fig.width=6, fig.height=5, out.width="65%", fig.cap="Vrednosti \\textit{Cp}-statistike v odvisnosti od števila napovednih spremenljivk v modelu."}
+
+best_subset_summary = summary(best_subset)
+names(best_subset_summary)
+which.min(best_subset_summary$cp)
+
+plot(best_subset_summary$cp, xlab = "Število napovednih spremenljivk", ylab = "Cp")
+points(which.min(best_subset_summary$cp), 
+       best_subset_summary$cp[which.min(best_subset_summary$cp)], 
+       pch = 20, col = "red")
+```
+
+Glede na kriterij $Cp$ je najboljši model z `r which.min(best_subset_summary$cp)` spremenljivkami. Poglejmo si ocene parametrov v izbranem modelu:
+
+```{r}
+coef(best_subset, which.min(best_subset_summary$cp))
+```
+
+
+```{r fig.width=6, fig.height=5, out.width="65%", fig.cap="Vrednosti $R_a^2$ (ter $R^2$) v odvisnosti od števila napovednih spremenljivk v modelu."}
+
+which.max(best_subset_summary$adjr2)
+
+plot(best_subset_summary$adjr2, 
+     xlab = "Število spremenljivk", ylab = expression(R[a]^2), 
+     ylim=c(0.35, 0.6), type="b")
+points(which.max(best_subset_summary$adjr2), 
+       best_subset_summary$adjr2[which.max(best_subset_summary$adjr2)], 
+       pch = 20, col = "red")
+points(best_subset_summary$rsq, col = "green", type="b")
+legend("bottomright", c("R2"),  col="green", bty="n", lty = 1)
+
+```
+
+Glede na prilagojeno vrednost $R^2$ je najboljši model z `r which.max(best_subset_summary$adjr2)` napovednima spremenljivkama.
+
+```{r}
+coef(best_subset, which.max(best_subset_summary$adjr2))
+```
+
+\subsection{Izbira po korakih}
+
+V praksi izbira najboljše podmnožice spremenljivk pogosto ni mogoča. Alternative vključujejo izbiro nazaj, izbiro naprej ter hibridne pristope. Kadar imamo na voljo manj napovednih spremenljivk kot je enot, je v praksi izbira nazaj bolj zaželjena, še posebej v primeru kolinearnosti. Po drugi strani izbire nazaj ne moremo uporabiti na visokorazsežnih podatkih, medtem ko izbiro naprej lahko.
+
+Paket `leaps` omogoča tako izbiro modela z izbiro nazaj kot z izbiro naprej. Splošni algoritem za izbiro nazaj je sledeči:
+
+\begin{enumerate}
+    \item Naj bo $\mathcal{M}_k$ polni model, ki vsebuje vse napovedne spremenljivke. 
+    \item Za $j = k,k-1, \dots, 1$:
+    \begin{enumerate}
+        \item Naredi $j$ modelov, ki vsebujejo vse razen ene napovedne spremenljivke modela $\mathcal{M}_j$, skupaj torej $j-1$ napovednih spremenljivk.
+        \item Izmed teh $j$ modelov izberi najboljši model $\mathcal{M}_{j-1}$ na podlagi najmanjše RSS oz. največjega $R^2$.
+    \end{enumerate}
+    \item Izmed $\mathcal{M}_0, \mathcal{M}_1, \ldots, \mathcal{M}_k$ izberi najboljši končni model na podlagi nekega kriterija za izbiro modela (npr., AIC, prilagojeni $R^2$). 
+\end{enumerate}
+
+```{r fig.width=6, fig.height=5, out.width="85%", fig.cap="Izbrane spremenljivke za najboljši model po izbiri nazaj (\\textit{Cp}-statistika) glede na različno število napovednih spremenljivk v modelu."}
+
+bwd_sel = regsubsets(Salary ~., data = train_set, nvmax = 19, method = "backward")
+bwd_sel_summary <- summary(bwd_sel)
+plot(bwd_sel, scale = "Cp")
+```
+
+```{r fig.width=6, fig.height=5, out.width="65%", fig.cap="Vrednosti \\textit{Cp}-statistike pri izbiri nazaj v odvisnosti od števila napovednih spremenljivk v modelu."}
+
+which.min(bwd_sel_summary$cp)
+
+plot(bwd_sel_summary$cp, 
+     xlab = "Število napovednih spremenljivk", ylab = "Cp", type="b")
+points(which.min(bwd_sel_summary$cp), 
+       bwd_sel_summary$cp[which.min(bwd_sel_summary$cp)], 
+       pch = 20, col = "red")
+```
+
+Izbira nazaj po $Cp$-kriteriju izbere model z `r which.min(bwd_sel_summary$cp)` spremenljivkami. Vidimo, da izbira nazaj ne vodi do enake izbire napovednih spremenljivk kot pa izbira najboljše podmnožice. 
+
+```{r}
+coef(bwd_sel, which.min(bwd_sel_summary$cp))
+```
+
+Po podobnem principu deluje tudi izbira naprej, le da začnemo z ničelnim modelom in postopoma dodajamo spremenljivke. Splošni algoritem za izbiro naprej je sledeči:
+
+\begin{enumerate}
+    \item Naj bo $\mathcal{M}_0$ ničelni model, ki ne vsebuje nobene napovedne spremenljivke. 
+    \item Za $j = 0,\dots, k-1$:
+    \begin{enumerate}
+        \item Naredi vseh $k-j$ modelov, ki v modelu $\mathcal{M}_j$ dodajo eno napovedno spremenljivko.
+        \item Izmed teh $k-j$ modelov izberi najboljši model $\mathcal{M}_{j+1}$ na podlagi najmanjše RSS oz. največjega $R^2$.
+    \end{enumerate}
+    \item Izmed $\mathcal{M}_0, \mathcal{M}_1, \ldots, \mathcal{M}_k$ izberi najboljši končni model na podlagi nekega kriterija za izbiro modela (npr., AIC, prilagojeni $R^2$). 
+\end{enumerate}
+
+```{r fig.width=6, fig.height=5, out.width="85%", fig.cap="Izbrane spremenljivke za najboljši model po izbiri naprej (\\textit{Cp}-statistika) glede na različno število spremenljivk v modelu."}
+
+fwd_sel = regsubsets(Salary ~., data = train_set, nvmax = 19, method = "forward")
+fwd_sel_summary <- summary(fwd_sel)
+plot(fwd_sel, scale = "Cp")
+```
+
+```{r fig.width=6, fig.height=5, out.width="65%", fig.cap="Vrednosti \\textit{Cp}-statistike pri izbiri nazaj v odvisnosti od števila spremenljivk v modelu."}
+
+which.min(fwd_sel_summary$cp)
+
+plot(fwd_sel_summary$cp, 
+     xlab = "Število napovednih spremenljivk", ylab = "Cp", type="b")
+points(which.min(fwd_sel_summary$cp), 
+       fwd_sel_summary$cp[which.min(fwd_sel_summary$cp)], 
+       pch = 20, col = "red")
+```
+
+Izbira nazaj po $C_p$-kriteriju izbere model s `r which.min(fwd_sel_summary$cp)` spremenljivkami. 
+
+```{r}
+coef(fwd_sel, which.min(fwd_sel_summary$cp))
+```
+
+\subsection{$K$-kratno navzkrižno preverjanje}
+
+Statistiki $Cp$ ali Adj $R^2$ kakovost modela ocenjujeta posredno, tako da vrednost RSS prilagodita glede na število napovednih spremenljivk v modelu. Pri $K$-kratnem navzkrižnem preverjanju kakovost modela, ki smo ga dobili na učnem vzorcu, ocenjujemo neposredno na validacijskem vzorcu tako, da podatke razdelimo na $K$ enako velikih delov; za npr. $K=5$ dobimo: 
+
+```{r echo=FALSE, fig.width=8, fig.height=1, out.width="90%", fig.cap="Razdelitev podatkov pri \\textit{K}-kratnem navzkrižnem preverjanju."}
+df <- data.frame(
+  xmin = c(0, 1, 2, 3, 4),
+  xmax = c(1, 2, 3, 4, 5),
+  ymin = c(0, 0, 0, 0, 0),
+  ymax = c(1, 1, 1, 1, 1),
+  label = c("Učni", "Učni", "Validacijski", "Učni", "Učni")
+)
+
+ggplot() +
+  geom_rect(data = df, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax), 
+            fill = c("transparent"), color = "black") +
+  geom_text(data = df, aes(x = (xmin + xmax) / 2, y = (ymin + ymax) / 2, label = label), 
+            size = 6, fontface = "bold", 
+            color = c("black", "black", "red", "black", "black" )) +
+  theme_void()
+```
+Na vsakem od $j=1,\ldots,K$ korakov uporabimo $(K-1)/K$ podatkov, da zgradimo model, $j$-ti del podatkov pa uporabimo, da izračunamo napako napovedi zgrajenega modela pri napovedovanju $j$-tega dela podatkov. To ponovimo $K$-krat in povprečimo ocene napake napovedi:
+
+$$CV_{(j)}=\frac{1}{K}\sum_{j=1}^{K}MSE_j.$$
+
+Pomembno pri $K$-kratnem navzkrižnem preverjanju je to, da v posameznem $j$-tem koraku ponovimo vse korake modeliranja!
+
+Da lahko v nadaljevanju izvedemo $K$-kratno navzkrižno preverjanje, bomo definirali funkcijo, ki vrne napovedi za vsak najboljši model na $K-1$-delu podatkov z $1,\ldots,$`nvmax` napovednimi spremenljivkami. 
+
+```{r}
+predict.regsubsets <- function(object, newdata, id){
+  form = as.formula(object$call[[2]])
+  mat = model.matrix(form, newdata)
+  coefi = coef(object, id=id)
+  xvars = names(coefi)
+  mat[,xvars]%*%coefi
+}
+```
+
+Pri 5-kratnem navzkrižnem preverjanju moramo postopek izbire najboljše podmnožice spremenljivk ponoviti petkrat. V vsakem koraku učni vzorec sestavlja $4/5$ podatkov. Za vsakega od 19 najboljših modelov izračunamo povprečno kvadratno napako napovedi ($MSE$), ki je definirana kot povprečna kvadrirana razdalja med dejanskimi vrednostmi odzivne spremenljivke na validacijskem vzorcu, ki ga sestavlja $1/4$ podatkov, ter napovedmi na podlagi ocen izbranega modela na učnem vzorcu. Na koncu napake povprečimo po vseh 5 ponovitvah. 
+
+Navzkrižno preverjanje nam da optimalno število regresorjev v modelu ne pa tudi, kateri regresorji so izbrani v model.
+
+V kodi v nadaljevanju bo `R` samodejno uporabil funkcijo `predict.regsubsets()`, ko kličemo `predict()`, saj je objekt `best.fit` razreda `regsubsets`.
+
+```{r}
+K=5
+set.seed(1)
+folds <- sample(1:K, nrow(train_set), replace=TRUE)
+cv.errors <- matrix(NA, K, 19, dimnames=list(NULL, paste(1:19)))
+
+for(j in 1:K){
+  best.fit=regsubsets(Salary~., data=train_set[folds!=j,], nvmax=19)
+  for(i in 1:19){
+    pred = predict(best.fit, train_set[folds==j,], id=i)
+    cv.errors[j, i] = mean((train_set$Salary[folds==j] - pred)^2)
+  }
+}
+
+mean.cv.errors=apply(cv.errors, 2, mean)
+mean.cv.errors
+
+```
+
+```{r fig.width=6, fig.height=5, out.width="65%", fig.cap="Vrednosti povprečne kvadratne napake napovedi v odvisnosti od števila napovednih spremenljivk v modelu."}
+which.min(mean.cv.errors)
+
+plot(mean.cv.errors, xlab = "Število napovednih spremenljivk", ylab = "MSE", type="b")
+points(which.min(mean.cv.errors), 
+       mean.cv.errors[which.min(mean.cv.errors)], 
+       pch = 20, col = "red")
+```
+
+Navzkrižno preverjanje izbere model z `r which.min(mean.cv.errors)` napovednima spremenljivkama. 
+
+```{r}
+coef(best_subset, which.min(mean.cv.errors))
+```
+
+\subsection{Domača naloga: Izbira modela}
+
+Za podatke `bejzbol_train.txt` naredite svoj napovedni model z uporabo zlepkov, interakcij, metodami izbire modela ... Posamezne korake analize komentirajte. Svoj končni model shranite z uporabo funkcije `saveRDS(model_koncni, "PRIIMEK.rds")` in ga skupaj s poročilom naložite v spletno učilnico.
+
+

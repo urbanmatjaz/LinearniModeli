@@ -1,0 +1,470 @@
+---
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+header-includes:
+  \usepackage{float}
+  \floatplacement{figure}{H}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+\renewcommand{\figurename}{Slika}
+\renewcommand{\tablename}{Tabela}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "",
+                      fig.align = 'center', 
+                      fig.width = 5, 
+                      fig.height = 4,
+                      warning = FALSE,
+                      message = FALSE)
+```
+
+\section{Vaja 6: Vrednotenje modela}
+
+`R` paketi, ki jih bomo uporabili na vajah:
+
+```{r message=FALSE}
+library(ISLR2) # datasets
+library(ggplot2) # nice plots (ggplot)
+library(knitr)  # for markdown 
+library(leaps) # best subset
+library(mgcv) # gam
+```
+
+Vrednotenje napovednega modela je ključno za ocenitev natančnosti napovedi v populaciji, za katero je model namenjen. Korektno vrednotenje je pomembno, saj lahko slab napovedni model v praksi naredi precej škode. 
+
+Vrednotenje napovednega modela poteka v naslednjih fazah:
+
+\begin{enumerate}
+\item \textbf{Notranje vrednotenje} (\textit{internal validation}) poteka še v fazi razvijanja modela in model vrednoti na podatkih, ki izhajajo iz istega podatkovnega vira kot podatki, na katerih je bil model zgrajen. Model lahko ovrednotimo:
+
+- tako, da podatke po principu slučajnosti razdelimo na učni in testni del, pri čemer se model, razvit na učnem delu podatkov, ovrednoti na testnem delu. Čeprav se zdi, da je v primeru naključne razdelitve vzorca na dva dela, testni del podatkov povsem neodvisen, temu ni tako, saj oba izhajata iz istega podatkovnega vira. Problematičnost tega pristopa je, da ustvarimo dva manjša podatkovna seta, kar je še posebej problematično v primerih, ko so vzorci majhni. To ima za posledico nestabilnost modela, kar vodi v večjo variabilnost in manj natančne napovedi.
+
+- metode ponovnega vzorčenja ($K$-kratno navzkrižno preverjanje, bootstrap), ki namesto specifičnega modela ovrednotijo sam postopek gradnje modela. Prednost teh pristopov je v tem, da se za vrednotenje uporabi vse podatke, ki so na voljo v fazi razvijanja modela.
+
+\item \textbf{Zunanje vrednotenje} (\textit{external validation}) je proces vrednotenja obstoječega napovednega modela na novih podatkih, pridobljenih na isti populaciji.
+
+\end{enumerate}
+
+Napovedne modele vrednotimo na podlagi različnih kriterijev za ovrednotenje napovedne kakovosti modela. V prejšnji vaji smo imeli na voljo le učni del podatkov za gradnjo modela. 
+
+Podatke smo razdelili na učni in testni del po principu slučajnosti:
+
+```{r}
+data("Hitters")
+#str(Hitters)
+
+Hitters <- na.omit(Hitters)
+
+set.seed(123)
+train <- sample(1:nrow(Hitters), round(2/3*nrow(Hitters)), replace=F)
+
+train_set <- Hitters[train, ]
+test_set <- Hitters[-train, ]
+```
+
+Odzivno spremenljivko smo logaritmirali:
+
+```{r}
+train_set$Salary <- log(train_set$Salary)
+test_set$Salary <- log(test_set$Salary)
+```
+
+
+Za primerjavo bomo modelom iz prejšnje vaje dodali še aditivni model, ki predstavlja razširitev linearnega modela, v katerem je odzivna spremenljivka v linearni odvisnosti od gladkih funkcij napovednih spremenljivk (npr. zlepki). Aditivni model številske spremenljivke modelira kot prilagodljive, gladke funkcije, ki jih lahko definiramo na podlagi zlepkov ali kakšnih drugih baznih funkcij. Da bi se izognili preprileganju takega modela, penalizacijski člen v modelu kaznuje pomanjkanje gladkosti oz. preprileganje (\textit{wiggliness}), kar zmanjša efektivno število stopinj prostosti, ki jih porabi posamezna številska spremenljivka v modelu. Optimalno stopnjo glajenja oz. penalizacije lahko določimo s pomočjo kriterijev za izbiro modela. Model načeloma predpostavlja aditivnost učinkov, a vanj lahko vključimo tudi interakcije z opisnimi napovednimi spremenljivkami.
+
+Aditivni model lahko naredimo s funkcijo `gam` iz paketa `mgcv`. Gladke funkcije (v našem primeru bomo uporabili kubične zlepke) bomo v modelu dodali za tiste številske spremenljivke, pri katerih smo z grafi parcialnih ostankov detektirali nelinearnost. Nastavitev argumenta `bs='cs'` avtomatično izvede tudi izbiro modela: pred vsak nelinearni člen je dodan dodaten penalizacijski člen, ki lahko pomen posamezne spremenljivke v modelu skrči na 0 (kar pomeni, da so efektivne stopinje prostosti enake 0 in je spremenljivka odstranjena iz modela). Izbiro modela bi lahko naredili tudi z uporabo drugih gladkih funcij, pri čemer bi morali argument `select` nastaviti na `TRUE`.
+
+```{r}
+gam_mod <- gam(Salary ~ AtBat + Hits + HmRun + Runs + RBI + Walks +
+                 s(Years, bs = "cs") + s(CAtBat, bs = "cs") +
+                 s(CHits, bs = "cs") + CHmRun +
+                 s(CRuns, bs = "cs") + s(CRBI, bs = "cs") +
+                 s(CWalks, bs = "cs") + League + Division + PutOuts +
+                 Assists + Errors + NewLeague,
+               method="REML", data=train_set)
+
+summary(gam_mod)
+```
+
+Funkcija `plot.gam` omogoča vizualizacijo nelinearne povezanosti napovednih spremenljivk, ki smo jih modelirali z gladkimi funkcijami.
+
+```{r fig.width=6, fig.height=4, out.width="95%", fig.cap="Modeliranje nelinearnosti v kontekstu GAM za model \\texttt{gam\\_mod}."}
+par(mfrow=c(2,3))
+plot(gam_mod)
+```
+
+Nelinearna je zveza z `log(Salary)` in spremenljivkami `Years`, `CatBat` in `CHits`, med tem ko sta spremenljivki `CRuns` in `CRBI` odstranjeni iz modela. 
+
+Za primerjavo naredimo še aditivni model, kjer popolnoma avtomatiziramo izbiro spremenljivk v model.
+
+```{r}
+gam_mod_2 <- gam(Salary ~ s(AtBat, bs = "cs") + s(Hits, bs = "cs") + 
+                 s(HmRun, bs = "cs") + s(Runs, bs = "cs") + 
+                 s(RBI, bs = "cs") + s(Walks, bs = "cs") +
+                 s(Years, bs = "cs") + s(CAtBat, bs = "cs") +
+                 s(CHits, bs = "cs") + s(CHmRun, bs= "cs") +
+                 s(CRuns, bs = "cs") + s(CRBI, bs = "cs") +
+                 s(CWalks, bs = "cs") + League + Division + 
+                 s(PutOuts, bs = "cs") + s(Assists, bs = "cs") + 
+                 s(Errors, bs = "cs") + NewLeague,
+               method="REML", data=train_set)
+
+summary(gam_mod_2)
+
+```
+
+```{r fig.width=6, fig.height=8, out.width="95%", fig.cap="Modeliranje nelinearnosti v kontekstu GAM za model \\texttt{gam\\_mod\\_2}."}
+par(mfrow=c(4,4))
+plot(gam_mod_2)
+```
+
+Dani model poleg spremenljivk `Years`, `CatBat` in `CHits` upošteva nelinearnost zveze z `log(Salary)` še pri spremenljivkah `Hits`, `Walks`, `CHmRun`, `CRBI`, `CWalks` in `PutOuts`. Za modeliranje zveze s `Hits` se npr. porabi kar 7,5 stoping prostosti! Vidimo pa, da je zveza nelinearna predvsem v repih - vprašanje je, če se dani model morda ne preprilega.
+
+Primerjajmo oba modela na podlagi AIC:
+
+```{r}
+AIC(gam_mod, gam_mod_2)
+```
+
+Drugi model je glede na AIC kriterij precej boljši.
+
+Za vrednotenje napovedne kakovosti modelov moramo najprej izračunati napovedi za enote v testnem vzorcu.
+
+```{r results='hide'}
+
+m0 <- lm(Salary~., data=train_set)
+
+best_subset = regsubsets(Salary ~. , data = train_set, nvmax = 19) 
+
+bwd_sel = regsubsets(Salary ~., data = train_set, nvmax = 19, method = "backward")
+
+fwd_sel = regsubsets(Salary ~., data = train_set, nvmax = 19, method = "forward")
+```
+
+Uporabili bomo funkcijo s prejšnje vaje, ki vrne napovedi:
+
+```{r}
+predict.regsubsets <- function(object, newdata, id){
+  form = as.formula(object$call[[2]]) # formula modela
+  mat = model.matrix(form, newdata) #modelska matrika
+  coefi = coef(object, id=id) #ocenjeni parametri modela
+  xvars = names(coefi)
+  mat[,xvars]%*%coefi
+}
+```
+
+
+```{r}
+preds_m0 <- predict(m0, newdata = test_set)
+
+preds_best_subset_cp <- predict(best_subset, newdata = test_set, id = 7)
+#izbira najboljše podmnožice s Cp kriterijem je dala model s 7 spremenljivkami
+
+preds_best_subset_adjr2 <- predict(best_subset, newdata = test_set, id = 11)
+#izbira najboljše podmnožice s AdjR2 kriterijem je dala model z 11 spremenljivkami                             
+
+preds_bwd_sel <- predict(bwd_sel, newdata = test_set, id = 6)
+#izbira nazaj je dala model s 6 spremenljivkami
+
+preds_fwd_sel <- predict(fwd_sel, newdata = test_set, id = 7)
+#izbira naprej je dala model s 7 spremenljivkami
+
+preds_cv5 <- predict(best_subset, newdata = test_set, id = 2)
+#izbira najboljše podmnožice s CV MSE kriterijem je dala model z 2 spremenljivkama
+
+#napovedi na podlagi gam:
+preds_gam <- predict(gam_mod, test_set)
+
+#napovedi na podlagi gam_2:
+preds_gam_2 <- predict(gam_mod_2, test_set)
+
+preds <- list(preds_m0, preds_best_subset_cp, preds_best_subset_adjr2,
+              preds_bwd_sel, preds_fwd_sel, preds_cv5, preds_gam, preds_gam_2)
+
+modeli <- c("Polni model", "Best subset (Cp)", "Best subset (Adj R2)", 
+            "Izbira nazaj (Cp)", "Izbira naprej", "Best subset (5x CV)", "Moj GAM", "Auto GAM")
+
+```
+
+V regresiji imamo na voljo dejanske vrednosti odzivne spremenljivke, ki jih lahko med sabo primerjamo. Tako lahko linearni napovedni model vrednotimo na podlagi naslednjih kriterijev (\textit{performance measures}):
+
+\begin{enumerate}
+\item srednja abolutna napaka napovedi:
+
+$$\frac{1}{n} \sum_{i=1}^n |y_i-\hat{y_i}|;$$
+
+\item povprečna kvadratna napaka napovedi:
+
+$$\frac{1}{n} \sum_{i=1}^n (y_i-\hat{y_i})^2;$$
+
+oz. povprečna napaka napovedi:
+
+$$\sqrt{\frac{1}{n} \sum_{i=1}^n (y_i-\hat{y_i})^2};$$
+
+\item koeficient determinacije:
+$$R^2=1-\frac{SS_{residuals}}{SS_{yy}};$$
+
+\item kalibriranosti modela, tj. ujemanjem med dejanskimi vrednostmi in napovedmi. Kalibracija se ocenjuje grafično tako, da na x-osi prikažemo napovedi, na y-os pa dejanske vrednosti, čemur dodamo še gladko kalibracijsko krivuljo. Numerično pa kalibracijo modela ocenimo s:
+
+- splošno kalibracijo oz. presečiščem kalibracije (\textit{calibration-in-the-large}, idealna vrednost = 0): ocenjuje povprečno (splošno) kalibracijo in kvantificira morebitno sistematično precenjevanje ali podcenjevanje napovedi, tako da primerja povprečje napovedi na testnih podatkih s povprečjem dejanskih vrednosti. V primeru, da je povprečje napovedi večje od povprečja dejanskih vrednosti, model na splošno precenjuje napovedi, v nasprotnem primeru pa model podcenjuje napovedi.
+
+- naklonom kalibracije (\textit{calibration slope}, idealna vrednost = 1):  je kar ocenjeni naklon $b$ v modelu, ki ocenjuje odvisnost dejanskih vrednosti od napovedi, dobljenih na testnem vzorcu:
+
+$$Y_{test}=a+b\hat{Y}.$$
+Kalibracijski naklon $<1$ nakazuje na preprileganje modela učnim podatkom. Preprileganje nastane, kadar model zajame preveč naključnega šuma v podatkih (ima torej slabo sposobnost generalizacije) in je prekompleksen glede na razpoložljivo količino podatkov (npr. preveliko število napovednih spremenljivk, izbira napovednih spremenljivk na podlagi statistične značilnosti, uporaba zelo fleksibilnih algoritmov). Na splošno je za preprileganje značilno, da so ocenjene napovedi preveč ekstremne (prenizke za nizke dejanske vrednosti in previsoke za visoke dejanske vrednosti). Nasprotno kalibracijski naklon $>1$ nakazuje na podprileganje modela učnim podatkom, torej bo variacijski razmik ocenjenih napovedi preozek.
+
+Kadar ocenjujemo kalibracijo modela, moramo vedno upoštevati tako naklon kalibracijske kot splošno kalibracijo, saj kalibracijski naklon, ki je blizu 1 sam po sebi še ne pomeni dobre kalibriranosti modela na testnem setu podatkov.
+
+\end{enumerate}
+
+Modele bomo med seboj najprej primerjali grafično.
+
+```{r}
+#iz lista v dolgi format
+preds_long <- data.frame(dejanske=rep(test_set$Salary, length(modeli)),
+                         napovedi=unlist(preds),
+                         method=rep(modeli, each=nrow(test_set)))
+
+preds_long$method <- factor(preds_long$method, levels=modeli)
+```
+
+```{r fig.width=7, fig.height=10, out.width="90%", fig.cap="Kalibracijski naklon za različne napovedne modele."}
+
+ggplot(preds_long, aes(y = dejanske, x = napovedi)) + 
+  geom_point() + 
+  theme_bw() +
+  geom_abline(aes(colour="Idealni", slope=1, intercept=0), linetype = "dashed") +
+  geom_smooth(method = "lm", se = FALSE, aes(colour = "Dejanski")) +  
+  geom_smooth(method = "loess", color = "black", se = TRUE, fill = "gray", alpha = 0.3) +
+  scale_colour_manual(name="Naklon", values=c("darkgrey", "red")) +
+  ylab("Dejanske vrednosti") +
+  xlab("Napovedi za log(Salary)") +
+  facet_wrap(~method, ncol=2) +
+  theme(legend.position = "top")
+```
+
+Poglejmo še porazdelitev napovedi za posamezne modele:
+
+```{r}
+#iz lista v dolgi format
+preds_long_2 <- data.frame(preds=c(test_set$Salary, unlist(preds)),                       
+                          method=c(rep("Dejanske", nrow(test_set)), 
+                                   rep(modeli, each=nrow(test_set))))
+
+preds_long_2$method <- factor(preds_long_2$method, levels=c("Dejanske", modeli))
+```
+
+
+```{r fig.width=7, fig.height=6, out.width="95%", fig.cap="Porazdelitev dejanskih vrednosti \\texttt{log(Salary)} na testnem vzorcu in napovedi za \\texttt{log(Salary)} za različne napovedne modele."}
+
+ggplot(preds_long_2, aes(x = method, y = preds)) + 
+  geom_boxplot() + 
+  theme_bw() +
+  ylab("log(Salary)") +
+  xlab("") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+```
+Grafično si poglejmo še pristranskost napovedi, tj. porazdelitev ostankov glede na dejanske vrednosti, ter lokalno napako napovedi, tj. vrednosti absolutnih ostankov glede na dejanske vrednosti odzivne spremenljivke.
+
+```{r message=FALSE, fig.width=7, fig.height=10, out.width="90%", fig.cap="Lokalna pristranskost napovedi za različne napovedne modele."}
+
+ggplot(preds_long, aes(x=dejanske, y=dejanske-napovedi)) + 
+  geom_point() + 
+  facet_wrap( ~ method, scale = "fixed", nrow=4) +
+  geom_smooth(method="loess") + 
+  ylab("Ostanki")+
+  xlab("Dejanske vrednosti log(Salary) v testnem vzorcu") 
+```
+
+Graf ostakov v odvisnosti od dejanskih vrednosti v testnem delu podatkov kaže na to, da modeli nepristransko ocenjujejo plače za igralce s povprečno `log(Salary)`, medtem ko za igralce pod povrečjem `log(Salary)` precenijo, za igralce nad povprečjem pa podcenijo. Izjema je model `Moj GAM`, pri katerem je pristranskost majhna po celem razponu dejanskih vrednosti. Podobno lahko opazimo tudi, če prikažemo absolutno napako napovedi v odvisnosti od dejanskih vrednosti. Napaka napovedi za celotni razpon dejanskih vrednosti `log(Salary)` je izrazito najmanjša pri modelu `Moj GAM`, kjer smo modelirali nelinearnost.
+
+```{r message=FALSE, fig.width=7, fig.height=10, out.width="90%", fig.cap="Lokalna napaka napovedi za različne napovedne modele."}
+
+ggplot(preds_long, aes(x=dejanske, y=abs(dejanske-napovedi))) + 
+  geom_point() + 
+  facet_wrap( ~ method, scale = "fixed", nrow=4) +
+  geom_smooth(method="loess") + 
+  ylab("Absolutni ostanki")+
+  xlab("Dejanske vrednosti log(Salary) v testnem vzorcu") 
+
+```
+
+Primerjajmo modele še numerično:
+
+```{r}
+primerjava.modelov <- matrix(NA, length(modeli), 4)
+colnames(primerjava.modelov) <- c("Splošna kalibracija", "Naklon kalibracije", "R2", "RMSE")
+rownames(primerjava.modelov) <- modeli
+
+for(i in 1:length(preds)){ 
+  
+  primerjava.modelov[i, "Splošna kalibracija"] <- mean(test_set$Salary - preds[[i]], na.rm=TRUE)
+  # coef(lm(Salary~offset(preds[[i]]), data=test_set))
+  primerjava.modelov[i, "Naklon kalibracije"] <- coef(lm(test_set$Salary ~ preds[[i]]))[2]
+  primerjava.modelov[i, "R2"] <- cor(test_set$Salary, preds[[i]], use="complete.obs")^2
+  primerjava.modelov[i, "RMSE"] <- sqrt(mean((test_set$Salary - preds[[i]])^2, na.rm=TRUE))
+  
+}
+
+kable(primerjava.modelov, digits = 3, caption = "Kakovost posameznega napovednega modela.")
+
+```
+
+Z ozirom na vse kriterije je zmagovalec model `Moj GAM`, kar kaže na to, da lahko z ustreznim modeliranjem nelinearnosti napovedno moč modela izrazito izboljšamo, a moramo biti previdni, da model hkrati ni preveč fleksibilen (tako kot `Auto GAM`).
+
+
+```{r}
+#funkcija za grafični prikaz rezultatov
+plotcomp <- function(kriterij="R2", main=kriterij, xrange=c(0,1), 
+                     legendx=NULL, fun=function(x) x, negative=FALSE){
+  
+  sta <- fun(primerjava.modelov[,kriterij])
+  sta <- sta[order(sta)]
+  if(negative) sta <- sta[order(-sta)]
+  barplot(sta, horiz=TRUE, xlim=xrange, ylab="", axes=F, axisnames=F)
+  axis(1)
+  if(is.null(legendx)) for(i in 1:length(sta)) text(sta[i]+0.02, y=i*1.2-0.4, 
+                                                    names(sta)[i], adj=0, cex=0.7)
+  else for(i in 1:length(sta)) text(legendx, y=i*1.2-0.4, names(sta)[i], adj=0)
+  title(main=main)
+  
+}
+```
+
+```{r fig.width=7, fig.height=7, out.width="90%", fig.cap="Ocenjena kakovost napovednih modelov glede na različne kriterije."}
+par(mfrow=c(2,2))
+
+plotcomp(kriterij="R2", xrange=c(0, 1.1))
+
+plotcomp(kriterij="Naklon kalibracije", xrange=c(0,1.8))
+
+plotcomp(kriterij="Splošna kalibracija", xrange=c(-0.15, 0.15), legendx=0.005)
+
+plotcomp(kriterij="RMSE", negative=TRUE, xrange=c(0, 1.2))
+```
+
+\subsection{Notranje vrednotenje na podlagi bootstrapa}
+
+V nadaljevanju bomo pokazali, kako bi modele ovrednotili na podlagi bootstrapa. Študije so pokazale, da je ta strategija v praksi boljša, saj imamo za gradnjo modela na voljo vse podatke. Bootstrap ovrednoti strategijo modeliranja, tako da oceni optimizem, tj. v kolikšni meri je vrednotenje modela na učnih podatkih preoptimistično. Ko smo ocenili optimitem, lahko izračunane vrednosti kriterijev na učnih podatkih popravimo, tako da od njih odštejemo optimizem. 
+
+Koraki za izračun za optimizem popravljenega kriterija s pomočjo bootstrapa so:  
+\begin{enumerate}
+\item Razvijemo napovedni model z uporabo celotnega prvotnega nabora podatkov in izračunamo navidezno učinkovitost modela na podlagi nekega kriterija (\textit{apparent performance}).  
+\item Generiramo bootstrap vzorec (enake velikosti kot prvotni podatki) z vzorčenjem enot s ponavljanjem iz prvotnega nabora podatkov.  
+\item Z uporabo istih metod modeliranja in izbire napovednih spremenljivk v model kot v 1. koraku naredimo bootstrap model na bootstrap vzorcu.  
+
+- Izračunamo navidezno učinkovitost modela na podlagi nekega kriterija na bootstrap vzorcu (\textit{bootstrap performance}).  
+
+- Izračunamo testno učinkovitost modela na podlagi nekega kriterija na prvotnih podatkih (\textit{test performance}).  
+
+\item Izračunamo optimizem kot razliko med navidezno učinkovitostjo na bootstrap vzorcu in testno učinkovitostjo na prvotnih podatkih.
+
+\item Korake 2 do 4 ponovimo večkrat (npr. 500-krat).  
+
+\item Izračunamo povprečno vrednost optimizma iz koraka 5.  
+
+\item Od navidezne učinkovitosti na prvotnih podatkih (iz koraka 1) odštejemo povprečni optimizem (iz koraka 6), da dobimo popravljeno vrednost kriterija za vrednotenje modela.
+\end{enumerate}
+
+Za primer se bomo osredotočili na strategijo izbire nazaj.
+
+```{r}
+Hitters$Salary <- log(Hitters$Salary)
+```
+
+
+```{r}
+bwd_sel_vsi = regsubsets(Salary ~., data = Hitters, nvmax = 19, method = "backward")
+bwd_sel_vsi_summary <- summary(bwd_sel_vsi)
+preds_vsi <- predict(bwd_sel_vsi, newdata = Hitters, id = which.min(bwd_sel_vsi_summary$cp))
+```
+```{r}
+(navidezni_c_spl <- mean(Hitters$Salary - preds_vsi, na.rm=TRUE))
+(navidezni_c_nakl <- coef(lm(Hitters$Salary ~ preds_vsi))[2])
+(navidezni_R2 <- cor(Hitters$Salary, preds_vsi, use="complete.obs")^2)
+(navidezni_rmse <- sqrt(mean((Hitters$Salary - preds_vsi)^2, na.rm=TRUE)))
+```
+Komentar: Model bo na učnih podatkih vedno popolno kalibriran! 
+
+```{r}
+set.seed(23345)
+B=500
+opt_c_spl <- opt_c_nakl <- opt_R2 <- opt_rmse <- numeric(B)
+
+for(b in 1:B) {
+  ind <- sample(1:nrow(Hitters), replace=TRUE) # indikator enot v bootstrap vzorcu
+  my.data.boot <- Hitters[ind, ] # bootstrap vzorec
+  my.mod.boot <- regsubsets(Salary ~., data = my.data.boot, nvmax = 19, 
+                            method = "backward") # izbira nazaj na bootstrap vzorcu
+  
+  #napovedi na boot učnem vzorcu
+  preds_boot <- predict(my.mod.boot, newdata = my.data.boot, 
+                        id = which.min(summary(my.mod.boot)$cp))
+  
+  #napovedi na originalnih podatkih
+  preds_orig <- predict(my.mod.boot, newdata = Hitters, 
+                        id = which.min(summary(my.mod.boot)$cp))
+  
+  #bootstrap performance
+  c_spl.boot <- mean(my.data.boot$Salary - preds_boot, na.rm=TRUE) #=0
+  c_nakl.boot <- coef(lm(my.data.boot$Salary ~ preds_boot))[2] #=1
+  R2.boot <- cor(my.data.boot$Salary, preds_boot, use="complete.obs")^2
+  rmse.boot <- sqrt(mean((my.data.boot$Salary - preds_boot)^2, na.rm=TRUE))
+  
+  #test performance
+  c_spl.test <- mean(Hitters$Salary - preds_orig, na.rm=TRUE)
+  c_nakl.test <- coef(lm(Hitters$Salary ~ preds_orig))[2]
+  R2.test <- cor(Hitters$Salary, preds_orig, use="complete.obs")^2
+  rmse.test <- sqrt(mean((Hitters$Salary - preds_orig)^2, na.rm=TRUE))
+  
+  #optimism za b bootstrap vzorec
+  opt_c_spl[b]=c_spl.boot-c_spl.test
+  opt_c_nakl[b]=c_nakl.boot-c_nakl.test
+  opt_R2[b]=R2.boot-R2.test
+  opt_rmse[b]=rmse.boot-rmse.test
+}
+
+popravljeni_c_spl <- navidezni_c_spl - mean(opt_c_spl)
+popravljeni_c_nakl <- navidezni_c_nakl - mean(opt_c_nakl)
+popravljeni_R2 <- navidezni_R2 - mean(opt_R2)
+popravljeni_rmse <- navidezni_rmse - mean(opt_rmse)
+
+primerjava.vrednotenja <- data.frame(Navidezni = c(navidezni_c_spl, navidezni_c_nakl, 
+                                                   navidezni_R2, navidezni_rmse),
+                                     Popravljeni = c(popravljeni_c_spl, popravljeni_c_nakl,
+                                                     popravljeni_R2, popravljeni_rmse),
+                         Testni = primerjava.modelov["Izbira nazaj (Cp)", ])
+
+kable(primerjava.vrednotenja, digits = 3, 
+      caption = "Primerjava načinov vrednotenja za strategijo izbire modela z izbiro nazaj.")
+
+```
+
+\subsection{Domača naloga: Oglaševanje}
+
+Zamislimo si, da smo zaposleni kot statistiki. Najame nas stranka, ki jo zanima, kakšna je zveza med oglaševanjem in prodajo nekega izdelka. Na razpolago imamo podatke \textit{Advertising.csv} o prodaji tega izdelka na 200 tržiščih, skupaj z oglaševalskim proračunom na vsakem od teh tržišč za tri različne medije: TV, radio in časopis. Stranka ne more neposredno vplivati na prodajo izdelka, lahko pa vpliva na višino oglaševalskega proračuna pri vsakem od treh medijev. Stranka nas prosi, da izdelamo načrt trženja za prihodnje leto, ki bo privedel do visoke prodaje izdelkov. Pri analizi poskušajte odgovoriti na naslednja vprašanja, ki bi utegnila zanimati vašo stranko:
+
+```{=tex}
+\begin{itemize}
+  \item Ali obstaja povezanost med oglaševanjem ter prodajo?
+  \item Če obstaja, kako močna je povezanost?
+  \item Kateri oglaševalski mediji so povezani s prodajo? 
+  \item Kako močna je povezava med posameznim medijem in prodajo? 
+  \item Ali obstaja interakcija med posameznimi oglaševalskimi mediji?  
+  \item Ali je povezanost linearna?
+  \item Kako natančno lahko na podlagi modela napovemo prodajo za nove enote?
+\end{itemize} 
+```
+
+```{r}
+data <- read.csv("Advertising.csv", header=T)
+str(data)
+```
+

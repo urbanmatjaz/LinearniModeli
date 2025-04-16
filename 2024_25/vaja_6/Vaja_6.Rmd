@@ -10,6 +10,7 @@ header-includes:
 editor_options: 
   markdown: 
     wrap: 72
+  chunk_output_type: console
 ---
 
 \renewcommand{\figurename}{Slika}
@@ -273,6 +274,10 @@ ggplot(preds_long_2, aes(x = method, y = preds)) +
 ```
 Grafično si poglejmo še pristranskost napovedi, tj. porazdelitev ostankov glede na dejanske vrednosti, ter lokalno napako napovedi, tj. vrednosti absolutnih ostankov glede na dejanske vrednosti odzivne spremenljivke.
 
+# Opomba:
+
+osamelci povzročajo naklone manjše ob 1
+
 ```{r message=FALSE, fig.width=7, fig.height=10, out.width="90%", fig.cap="Lokalna pristranskost napovedi za različne napovedne modele."}
 
 ggplot(preds_long, aes(x=dejanske, y=dejanske-napovedi)) + 
@@ -391,7 +396,7 @@ preds_vsi <- predict(bwd_sel_vsi, newdata = Hitters, id = which.min(bwd_sel_vsi_
 (navidezni_R2 <- cor(Hitters$Salary, preds_vsi, use="complete.obs")^2)
 (navidezni_rmse <- sqrt(mean((Hitters$Salary - preds_vsi)^2, na.rm=TRUE)))
 ```
-Komentar: Model bo na učnih podatkih vedno popolno kalibriran! 
+# Komentar: Model bo na učnih podatkih vedno popolno kalibriran! 
 
 ```{r}
 set.seed(23345)

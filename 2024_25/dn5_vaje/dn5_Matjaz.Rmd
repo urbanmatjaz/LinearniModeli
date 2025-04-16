@@ -121,3 +121,8 @@ model_koncni = m_s7
 saveRDS(model_koncni, "MATJAZ.rds")
 ```
 
+
+Opombe:
+
+Velik bolš je najprej modelirat nelinearnost pol pa šele zbirat subset spremenljivk.
+

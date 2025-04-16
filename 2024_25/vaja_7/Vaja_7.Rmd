@@ -1,0 +1,198 @@
+---
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
+header-includes:
+  \usepackage{float}
+  \floatplacement{figure}{H}
+editor_options: 
+  markdown: 
+    wrap: 72
+  chunk_output_type: console
+---
+
+\renewcommand{\figurename}{Slika}
+\renewcommand{\tablename}{Tabela}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "",
+                      fig.align = 'center', 
+                      fig.width = 5, 
+                      fig.height = 4,
+                      warning = FALSE,
+                      message = FALSE)
+```
+
+\section{Vaja 7: Mešani model}
+
+`R` paketi, ki jih bomo uporabili na vajah:
+
+```{r message=FALSE}
+library(lme4) # mešani modeli
+library(ggplot2) # nice plots (ggplot)
+library(knitr)  # for markdown 
+library(dplyr) # data manipulation
+library(effects) # compute marginal effects
+library(lmerTest) # hypothesis testing in LMM
+```
+
+\subsection{Primer: Križana slučajna dejavnika}
+
+Ena od predpostavk normalnega linearnega modela je neodvisnost napak. Predpostavko o neodvisnosti napak težko preverjamo z diagnostičnimi orodji. Potrebno je dobro poznavanje podatkov in poskusne zasnove - ali ima vsaka enota v podatkih le po eno vrednost ali temu ni tako?
+
+Poglejmo si primer podatkov, zbranih z namenom raziskati, kako vljudnost (`attitude`) z dvema kategorijama: `inf` (\textit{informal}, neformalni govor) in `pol` (\textit{polite}, formalni govor), vpliva na frekvenco glasu (`frequency`, merjena v Hz (Hertz), kjer višje vrednosti pomenijo višji ton). Četudi nas vpliv spola (`gender`) sam na sebi morda ne zanima, a ker ima pomemben vpliv na višino glasu (je moteča spremenljivka, \textit{confounding variable}), ga je potrebno upoštevati v modelu. V kolikor spola v modelu ne bi upoštevali, na podlagi analize ne bi mogli reči ničesar o vplivu `attitude` \textit{per se}. Poleg tega imamo v podatkih še spremenljivko, ki označuje posamezno situacijo `scenario`: posamezniki so morali tako v neformalnem kot formalnem tonu npr. vprašati za uslugo, se opravičiti za zamudo ipd.
+
+```{r}
+glas <- read.csv("politeness_data.csv", header = TRUE)
+str(glas)
+```
+```{r}
+glas$gender <- factor(glas$gender)
+glas$scenario <- factor(glas$scenario)
+```
+
+
+Tovrstne podatke bi lahko modelirali z linearnim modelom:
+
+`frequency ~ attitude + sex + ` $\epsilon$,
+
+pri čemer sta `attitude` in `sex` fiksna (glavna) vpliva (\textit{fixed effects}), $\epsilon$ pa je napaka, ki predstavlja odstopanja napovedi modela zaradi nekih drugih "slučajnih" vplivov, ki jih nismo mogli upoštevati v modelu. 
+
+Težava pa je v tem, da poskus ni bil zasnovan na način, da bi imeli za vsako poskusno enoto le po eno meritev, temveč je bilo za vsakega udeleženca zbranih po več meritev. Vidimo torej, da je kršena predpostavka neodvisnosti napak: več meritev na isti poskusni enoti ne moremo obravnavati kot med seboj neodvisne. Vsaka oseba ima nekoliko drugačno višino glasu, kar vpliva na vse meritve istega udeleženca. Obstaja torej določena korelacija med meritvami istega udeleženca.
+
+To bomo v modelu upoštevali tako, da bomo dodali slučajni vpliv za vsako poskusno enoto (osebo). Predpostavili bomo, da ima vsak udeleženec poskusa drugačno izhodiščno oz. povprečno frekvenco glasu. Poglejmo si porazdelitve frekvence glasu po udeležencih:
+
+```{r fig.width=5, fig.height=4, out.width="90%", fig.cap="Porazdelitev frekvence glasu po osebi."}
+ggplot(glas, aes(x=subject, y=frequency)) +
+  geom_boxplot() +
+  theme_bw() +
+  facet_grid(.~gender, scales = "free") +
+  xlab("Oseba") +
+  ylab("Frekvenca glasu (Hz)")
+```
+Poleg tega, da imajo moški nižji glas kot ženske, pa vidimo tudi, da ostajajo individualne razlike tudi znotraj skupine moških in žensk - nekatere osebe imajo za svoj spol relativno višje glasove, drugi pa relativno nižje. 
+
+Te individualne razlike lahko zdaj modeliramo tako, da v modelu vključimo različna (slučajna) presečišča (\textit{random intercepts}) za vsako poskusno enoto. Za razliko od linearnega modela, v katerem smo pojasnjevanje odzivne spremenljivke razdelili na fiksne oz. sistematične vplive, ki jih razumemo, in napako $\epsilon$, ki ostane nepojasnjena, v mešanem modelu zdaj ta drugi, nesistematični del modela dobi neko strukturo, ki jo vnašamo oz. modeliramo z dodajanjem slučajnih vplivov. Naš novi model zapišemo kot:
+
+`frequency ~ attitude + sex + (1|subject) + ` $\epsilon$,
+
+A v podatkih obstaja še dodatni vir odvisnosti, katerega moramo v modelu upoštevati. Poleg tega, da imamo več meritev za posamezno poskusno osebo, imamo tudi po več meritev za posamezno situacijo. Tako je lahko v določeni situaciji glas v povprečju višji kot v drugih situacijah. Situacija ima tako lahko, podobno kot oseba, nek svoj vpliv na frekvenco glasu. Zato različnih odzivov v isti situaciji ne moremo obravnavati kot neodvisnih. Z drugimi besedami, obstaja neka povezanost med odzivi v isti situaciji, tudi če jih izrečejo različne osebe. 
+
+
+```{r fig.width=5, fig.height=4, fig.cap="Porazdelitev frekvence glasu po situaciji in spolu."}
+ggplot(glas, aes(x=scenario, y=frequency)) + 
+  geom_jitter(position=position_dodge(0.2), cex=1.2) +
+  facet_grid(.~gender, scales = "free") +
+  theme_bw() +
+  xlab("Situacija") +
+  ylab("Frekvenca glasu (Hz)")
+```
+Razlike niso tako očitne kot med osebami, a so prisotne. Če teh medsebojnih povezav ne bi upoštevali, bi kršili predpostavko neodvisnosti. V model bomo tako dodali še slučajno presečišče za situacijo:
+
+`frequency ~ attitude + sex + (1|subject) + (1|scenario) + ` $\epsilon$.
+
+Formalni zapis modela:
+
+$$y_{ijk}=\beta_0+\beta_1*attitude_{ijk}+\beta_2*sex_{ijk}+u_{0j}+v_{0k}+\epsilon_{ijk},$$
+pri čemer je $u_{0j} \sim \mathcal{N}(0, \sigma_v^2)$ slučajno presečišče za osebo $j$ in $v_{0k} \sim \mathcal{N}(0, \sigma_u^2)$ slučajno presečišče za situacijo $k$. V modelu imamo torej dva križana slučajna dejavnika (vsaka oseba se je preizkusila v vsaki situaciji).
+
+Lotimo se analize. Pri podatkih s ponavljajočimi meritvami je še posebej pomembno, da najprej pogledamo, ali obstaja kakršenkoli vzorec pri manjkajočih vrednostih. Vzorec bi lahko pomenil, da vrednosti ne manjkajo po principu slučajnosti, temveč za to obstaja nek razlog (npr. v študiji o učinkovitosti zdravila, posamezniki s slabim izidom izpadejo iz študije, kar povzroči, da je ocena učinkovitosti zdravila preoptimistična).
+
+```{r}
+glas %>% group_by(subject) %>% summarise(sum(is.na(frequency)))
+```
+
+Imamo eno samo manjkajočo vrednost, kar ne bo problem za naš model.
+
+Poglejmo si porazdelitev frekvence glasu po fiksnih vplivih (po vljudnosti ter ob upoštevanju spola) grafično:
+
+```{r fig.width=5, fig.height=4, fig.cap="Porazdelitev frekvence glasu po vljudnosti ter ob upoštevanju spola."}
+ggplot(glas, aes(x=attitude, y=frequency)) +
+  geom_boxplot() +
+  theme_bw() +
+  facet_grid(.~gender, scales = "free") +
+  xlab("Oseba") +
+  ylab("Frekvenca glasu (Hz)")
+```
+Izgleda, kot da je pri obeh spolih glas nižji v formalnem (vljudnostnem) govoru, zdi pa se tudi, da je razlika nekoliko večja pri ženskah v primerjavi z moškimi, kar nakazuje na interakcijo.
+
+```{r}
+mod = lmer(frequency ~ attitude + gender + 
+               (1|subject) + (1|scenario), data=glas)
+summary(mod)
+```
+V povzetku modela pod razdelkom `Random effects` dobimo oceno variabilnosti za vsak slučajni vpliv. Vidimo, da je pri `scenario` variabilnost precej manjša kot pri `subject`. `Residual` je variabilnost, ki je z modelom nismo uspeli pojasniti (ocena za $\epsilon$).
+
+`Fixed effects` lahko interpretiramo podobno kot pri običajnem linearnem modelu. Vrednost za presečišče je povprečna napoved, če so ostale napovedne spremenljivke enake 0 (torej povprečna napoved frekvence glasu pri neformalnem govoru ženske). `attitudepol` je povprečna razlika med neformalnim in vljudnim govorom ob upoštevanju spola, pri čemer je v povprečju frekvenca vljudnega govora za 19,7 Hz nižja. `genderM` je vpliv spola ob upoštevanju `attitude`, pri čemer imajo moški v povprečju 108,5 Hz nižjo frekvenco glasu.
+
+Brez naloženega paketa `lmerTest` pri izpisu ne dobimo avtomatično tudi že $p$-vrednosti. Obstaja namreč več pristopov, kako dobiti $p$-vrednosti v mešanem modelu, saj ni tako enoznačno, kako oceniti stopinje prostosti. Test razmerja verjetij je pri mešanih modelih za fiksne vplive antikonzervativen. Po privzetih nastavitvah `lmerTest` oceni $p$-vrednosti po Satterthwaitovi metodi (alternativa je Kenward-Rogerjeva aproksimacija `summary(model, ddf = "Kenward-Roger")`).
+
+Poglejmo še, ali je v modelu potrebna interakcija med glavnima vplivoma:
+
+```{r}
+mod_int = lmer(frequency ~ attitude * gender + 
+               (1|subject) + (1|scenario), data=glas)
+anova(mod_int)
+```
+
+Rezultati kažejo na to, da interakcija v modelu ni potrebna. Tudi vrednost AIC je podobna za oba modela.
+
+Poglejmo ocenjene parametre glede na `mod` po `subject` in `scenario`:
+
+```{r}
+coef(mod)
+
+#ranef(mod)
+```
+
+Vsaka situacija in vsaka oseba ima svojo oceno za presečišče, medtem ko so fiksni vplivi enaki za vse situacije in vse osebe. V tem modelu upoštevamo, da obstajajo razlike v frekvencah glede na osebo in glede na situacijo, vendar pa predpostavljamo, da bo vpliv vljudnosti enak ne glede na osebo in situacijo.
+
+V kolikor lahko pričakujemo, da bodo posamezne situacije vzbudile večjo ali manjšo stopnjo vljudnosti ali da so nekatere osebe bolj vljudne kot druge, da torej vpliv vljudnosti ni enak za vse situacije oz. vse osebe, moramo v model vključiti tudi naključna naklona za učinek vljudnosti.
+
+```{r}
+mod_naklona = lmer(frequency ~ attitude + gender + 
+                     (1+attitude|subject) + (1+attitude|scenario), 
+                   data=glas)
+summary(mod_naklona)
+```
+
+Poglejmo ocene parametrov za dani model:
+
+```{r}
+coef(mod_naklona)
+```
+
+Zdaj je stolpec z ocenami za vpliv vljudnosti različen po osebah in situacijah, vendar pa je vedno negativen, vrednosti pa so si med sabo precej podobne. Ta model kaže na to, da kljub individualnim razlikam obstaja tudi določena konsistentnost v tem, kako vljudnost vpliva na glas: pri vseh govorcih se glas pri vljudnem govorjenju nagiba k nižjim tonom, vendar se pri nekaterih spusti nekoliko bolj kot pri drugih.
+
+Primerjajmo modela `mod_naklona` z `mod` s testom razmerja verjetij:
+
+```{r}
+anova(mod, mod_naklona)
+```
+
+Lahko pa bi uporabili tudi funkcijo `ranova` iz `lmerTest` (REML-test razmerja verjetij):
+
+```{r}
+ranova(mod_naklona)
+```
+
+Vidimo, da je posamezni slučajni vpliv neznačilen, zato model privzamemo model `mod` s slučajnima presečiščema za `subject` in `attitude`. V kolikor bi želeli s funkcijo `ranova` dobiti isti rezultat kot pri `anova`, bi morali model oceniti po metodi največjega verjetja (torej nastaviti argument `REML = FALSE`).
+
+Poglejmo izpolnjenost predpostavk za dani model.
+
+```{r fig.width=5, fig.height=4, fig.show="hold", out.width="50%", fig.cap="Ostanki za model \\texttt{mod}."}
+plot(mod, pch=16)
+
+qqnorm(resid(mod), pch=16)
+qqline(resid(mod), lty=2)
+```
+
+Grafična prikaza ostankov za model `mod` kažeta na ustreznost modela.
+
+```{r fig.width=5, fig.height=4, out.width="90%", fig.cap="Populacijske napovedi za frekvenco glasu s pripadajočimi 95 \\% intervali zaupanja na podlagi modela \\texttt{mod}."}
+plot(Effect(c("attitude", "gender"), mod), 
+     main="", xlab="Vljudnost", ylab="Frekvenca glasu (Hz)")
+```
+
